@@ -24,7 +24,7 @@ import { Search, ArrowRight, FileText, Package } from "lucide-react";
 import NewDistributionDialog from "@/components/NewDistributionDialog";
 
 // Mock distribution data
-const recentDistributions = [
+const initialDistributions = [
   {
     id: "1",
     destination: "Abia State",
@@ -61,7 +61,7 @@ const recentDistributions = [
 ];
 
 // Mock state distribution data
-const stateDistributions = [
+const initialStateDistributions = [
   {
     id: "1",
     destination: "General Hospital Umuahia",
@@ -116,6 +116,10 @@ export default function Distribution() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("recent");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // State for distributions data
+  const [recentDistributions, setRecentDistributions] = useState(initialDistributions);
+  const [stateDistributions, setStateDistributions] = useState(initialStateDistributions);
 
   // Determine which data to show based on user's location
   const isStateManager = user?.location?.type === "state";
@@ -125,6 +129,18 @@ export default function Distribution() {
   const filteredDistributions = distributionsData.filter((dist) =>
     dist.destination.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Handle newly created distribution
+  const handleDistributionCreated = (newDistribution: any) => {
+    if (isStateManager) {
+      setStateDistributions(prev => [newDistribution, ...prev]);
+    } else {
+      setRecentDistributions(prev => [newDistribution, ...prev]);
+    }
+    
+    // Update statistics in the UI (this is simulated)
+    // In a real application, you would recalculate these values
+  };
 
   // Function to get badge style based on status
   const getStatusBadge = (status: string) => {
@@ -173,6 +189,7 @@ export default function Distribution() {
       <NewDistributionDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
+        onDistributionCreated={handleDistributionCreated}
       />
 
       <Tabs defaultValue="recent" className="mb-6">
@@ -198,7 +215,11 @@ export default function Distribution() {
                 <CardTitle className="text-sm font-medium">Total Distributed</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">5,280</div>
+                <div className="text-2xl font-bold">
+                  {distributionsData.reduce((total, dist) => {
+                    return total + dist.items.reduce((sum, item) => sum + item.quantity, 0);
+                  }, 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">items this month</p>
               </CardContent>
             </Card>
@@ -208,7 +229,13 @@ export default function Distribution() {
                 <CardTitle className="text-sm font-medium">In Transit</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">780</div>
+                <div className="text-2xl font-bold">
+                  {distributionsData
+                    .filter(dist => dist.status === "in-transit")
+                    .reduce((total, dist) => {
+                      return total + dist.items.reduce((sum, item) => sum + item.quantity, 0);
+                    }, 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">items currently</p>
               </CardContent>
             </Card>
@@ -302,7 +329,7 @@ export default function Distribution() {
               <p className="text-muted-foreground mb-4 text-center">
                 No upcoming distributions scheduled. Create a new distribution to get started.
               </p>
-              <Button>
+              <Button onClick={() => setIsDialogOpen(true)}>
                 <ArrowRight className="mr-2 h-4 w-4" />
                 New Distribution
               </Button>

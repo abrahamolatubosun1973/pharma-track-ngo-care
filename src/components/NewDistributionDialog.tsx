@@ -74,16 +74,19 @@ const mockDrugItems = [
 interface NewDistributionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDistributionCreated?: (distribution: any) => void;
 }
 
 export default function NewDistributionDialog({ 
   open, 
-  onOpenChange 
+  onOpenChange,
+  onDistributionCreated
 }: NewDistributionDialogProps) {
   const { user } = useAuth();
   const [selectedItems, setSelectedItems] = useState<Array<{ id: string, name: string, quantity: number }>>([]);
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get destinations based on user's role
   const destinations = mockGetDestinations(user?.location || { type: "central", name: "Central" });
@@ -134,22 +137,43 @@ export default function NewDistributionDialog({
 
   // Handle form submission
   const onSubmit = (data: FormData) => {
-    // Simulate API call
-    console.log("Submitting new distribution:", { 
-      destination: data.destination,
-      items: selectedItems
-    });
+    setIsSubmitting(true);
+    
+    // Create the new distribution object
+    const destinationDetails = destinations.find(d => d.id === data.destination);
+    const newDistribution = {
+      id: `DIST-${Math.floor(Math.random() * 10000)}`,
+      destination: destinationDetails?.name || data.destination,
+      destinationType: destinationDetails?.type || "unknown",
+      date: new Date().toISOString().split('T')[0],
+      status: "pending",
+      items: selectedItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity
+      }))
+    };
 
-    // Show success toast
-    toast({
-      title: "Distribution created",
-      description: `Distribution to ${destinations.find(d => d.id === data.destination)?.name} has been created`,
-    });
+    // Simulate API call with a delay
+    setTimeout(() => {
+      console.log("Distribution created:", newDistribution);
+      
+      // Call the callback function if provided
+      if (onDistributionCreated) {
+        onDistributionCreated(newDistribution);
+      }
 
-    // Reset form and close dialog
-    form.reset();
-    setSelectedItems([]);
-    onOpenChange(false);
+      // Show success toast
+      toast({
+        title: "Distribution created successfully",
+        description: `Distribution to ${newDistribution.destination} has been created and is pending approval`,
+      });
+
+      // Reset form and close dialog
+      form.reset();
+      setSelectedItems([]);
+      setIsSubmitting(false);
+      onOpenChange(false);
+    }, 1000);
   };
 
   return (
@@ -269,10 +293,10 @@ export default function NewDistributionDialog({
               </DialogClose>
               <Button 
                 type="submit" 
-                disabled={selectedItems.length === 0}
+                disabled={selectedItems.length === 0 || isSubmitting}
               >
                 <Truck className="mr-2 h-4 w-4" />
-                Create Distribution
+                {isSubmitting ? "Creating..." : "Create Distribution"}
               </Button>
             </DialogFooter>
           </form>
