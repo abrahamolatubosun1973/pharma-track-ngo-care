@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,7 +130,8 @@ const destinations = {
   ]
 };
 
-export default function Distribution() {
+// Rename the Distribution component to DistributionPage to avoid conflicts
+function DistributionPage() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("recent");
@@ -412,3 +412,6 @@ export default function Distribution() {
     </div>
   );
 }
+
+// Export the component as default
+export default DistributionPage;

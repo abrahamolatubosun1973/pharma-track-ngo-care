@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,15 +35,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 // Define drug details type
-type DrugDetails = {
+interface DrugDetails {
   id: string;
-  name: string;
+  name: string; // Ensure this is not optional
   category: string;
   stock: number;
   reorderLevel: number;
   expiryDate: string;
-  status: string;
-};
+  status?: string; // Make status optional if it's not always provided
+}
 
 // Mock data
 const mockDrugs: DrugDetails[] = [

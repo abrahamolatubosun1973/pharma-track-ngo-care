@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -30,9 +30,12 @@ import {
   Edit,
   Trash
 } from "lucide-react";
+import { UserFormDialog, UserFormData } from "@/components/UserFormDialog";
+import { LocationFormDialog, LocationFormData } from "@/components/LocationFormDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-// Mock users data
-const mockUsers = [
+// Initial mock users data
+const initialMockUsers = [
   {
     id: "1",
     name: "Admin User",
@@ -77,8 +80,8 @@ const mockUsers = [
   }
 ];
 
-// Mock facilities data
-const mockLocations = [
+// Initial mock locations data
+const initialMockLocations = [
   { 
     id: "central", 
     name: "CARITAS HQ", 
@@ -127,7 +130,25 @@ const mockLocations = [
 
 export default function Settings() {
   const { toast } = useToast();
+  const [mockUsers, setMockUsers] = useState(initialMockUsers);
+  const [mockLocations, setMockLocations] = useState(initialMockLocations);
+  
+  // User dialog states
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [userDialogMode, setUserDialogMode] = useState<"add" | "edit">("add");
+  const [selectedUser, setSelectedUser] = useState<UserFormData | undefined>(undefined);
+  
+  // Location dialog states
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [locationDialogMode, setLocationDialogMode] = useState<"add" | "edit">("add");
+  const [selectedLocation, setSelectedLocation] = useState<LocationFormData | undefined>(undefined);
+  
+  // Deletion confirmation dialog states
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleteItemType, setDeleteItemType] = useState<"user" | "location">("user");
+  const [deleteItemId, setDeleteItemId] = useState<string>("");
 
+  // General settings handlers
   const handleSaveChanges = () => {
     toast({
       title: "Settings updated",
@@ -141,6 +162,163 @@ export default function Settings() {
       description: "Reorder levels and notification settings have been updated."
     });
   };
+
+  // User management handlers
+  const handleAddUser = () => {
+    setUserDialogMode("add");
+    setSelectedUser(undefined);
+    setIsUserDialogOpen(true);
+  };
+
+  const handleEditUser = (user: any) => {
+    setUserDialogMode("edit");
+    // Convert location name to ID
+    const locationObj = mockLocations.find(loc => loc.name === user.location);
+    const locationId = locationObj ? locationObj.id : "";
+    
+    setSelectedUser({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      location: locationId
+    });
+    setIsUserDialogOpen(true);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    setDeleteItemType("user");
+    setDeleteItemId(userId);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteUser = () => {
+    setMockUsers(mockUsers.filter(user => user.id !== deleteItemId));
+    toast({
+      title: "User Deleted",
+      description: "User has been successfully removed from the system."
+    });
+    setIsDeleteConfirmOpen(false);
+  };
+
+  const handleUserFormSubmit = (data: UserFormData) => {
+    if (userDialogMode === "add") {
+      // Generate a new ID and find the location name
+      const newId = (mockUsers.length + 1).toString();
+      const locationObj = mockLocations.find(loc => loc.id === data.location);
+      
+      setMockUsers([
+        ...mockUsers,
+        {
+          id: newId,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          location: locationObj ? locationObj.name : "Unknown"
+        }
+      ]);
+    } else {
+      // Update existing user
+      const locationObj = mockLocations.find(loc => loc.id === data.location);
+      
+      setMockUsers(
+        mockUsers.map(user => 
+          user.id === data.id
+            ? {
+                ...user,
+                name: data.name,
+                email: data.email,
+                role: data.role,
+                location: locationObj ? locationObj.name : "Unknown"
+              }
+            : user
+        )
+      );
+    }
+  };
+
+  // Location management handlers
+  const handleAddLocation = () => {
+    setLocationDialogMode("add");
+    setSelectedLocation(undefined);
+    setIsLocationDialogOpen(true);
+  };
+
+  const handleEditLocation = (location: any) => {
+    setLocationDialogMode("edit");
+    
+    setSelectedLocation({
+      id: location.id,
+      name: location.name,
+      type: location.type,
+      parent: location.parent,
+      address: location.address,
+      contact: location.contact
+    });
+    setIsLocationDialogOpen(true);
+  };
+
+  const handleDeleteLocation = (locationId: string) => {
+    setDeleteItemType("location");
+    setDeleteItemId(locationId);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteLocation = () => {
+    setMockLocations(mockLocations.filter(location => location.id !== deleteItemId));
+    toast({
+      title: "Location Deleted",
+      description: "Location has been successfully removed from the system."
+    });
+    setIsDeleteConfirmOpen(false);
+  };
+
+  const handleLocationFormSubmit = (data: LocationFormData) => {
+    if (locationDialogMode === "add") {
+      // Generate a new ID
+      const newId = `location-${mockLocations.length + 1}`;
+      
+      setMockLocations([
+        ...mockLocations,
+        {
+          id: newId,
+          name: data.name,
+          type: data.type,
+          ...(data.parent && { parent: data.parent }),
+          address: data.address,
+          contact: data.contact
+        }
+      ]);
+    } else {
+      // Update existing location
+      setMockLocations(
+        mockLocations.map(location => 
+          location.id === data.id
+            ? {
+                ...location,
+                name: data.name,
+                type: data.type,
+                ...(data.parent && { parent: data.parent }),
+                address: data.address,
+                contact: data.contact
+              }
+            : location
+        )
+      );
+    }
+  };
+
+  // Get parent locations (states) for dropdown
+  const stateLocations = mockLocations.filter(loc => loc.type === "state").map(loc => ({
+    id: loc.id,
+    name: loc.name
+  }));
+
+  // Get all locations for user dropdown
+  const allLocations = mockLocations.map(loc => ({
+    id: loc.id,
+    name: loc.name
+  }));
 
   return (
     <div className="page-container">
@@ -213,7 +391,7 @@ export default function Settings() {
                   Manage user accounts and access permissions
                 </CardDescription>
               </div>
-              <Button>
+              <Button onClick={handleAddUser}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add User
               </Button>
@@ -240,11 +418,20 @@ export default function Settings() {
                         </TableCell>
                         <TableCell>{user.location}</TableCell>
                         <TableCell className="text-right space-x-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditUser(user)}
+                          >
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500 hover:text-red-600"
+                            onClick={() => handleDeleteUser(user.id)}
+                          >
                             <Trash className="h-4 w-4 mr-1" />
                             Delete
                           </Button>
@@ -268,7 +455,7 @@ export default function Settings() {
                   Manage states and healthcare facilities
                 </CardDescription>
               </div>
-              <Button>
+              <Button onClick={handleAddLocation}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Location
               </Button>
@@ -299,11 +486,20 @@ export default function Settings() {
                         <TableCell>{location.address}</TableCell>
                         <TableCell>{location.contact}</TableCell>
                         <TableCell className="text-right space-x-2">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditLocation(location)}
+                          >
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500 hover:text-red-600"
+                            onClick={() => handleDeleteLocation(location.id)}
+                          >
                             <Trash className="h-4 w-4 mr-1" />
                             Delete
                           </Button>
@@ -443,6 +639,35 @@ export default function Settings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* User Add/Edit Dialog */}
+      <UserFormDialog 
+        isOpen={isUserDialogOpen}
+        onClose={() => setIsUserDialogOpen(false)}
+        onSubmit={handleUserFormSubmit}
+        locations={allLocations}
+        initialData={selectedUser}
+        mode={userDialogMode}
+      />
+
+      {/* Location Add/Edit Dialog */}
+      <LocationFormDialog
+        isOpen={isLocationDialogOpen}
+        onClose={() => setIsLocationDialogOpen(false)}
+        onSubmit={handleLocationFormSubmit}
+        parentLocations={stateLocations}
+        initialData={selectedLocation}
+        mode={locationDialogMode}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={deleteItemType === "user" ? confirmDeleteUser : confirmDeleteLocation}
+        title={`Delete ${deleteItemType === "user" ? "User" : "Location"}`}
+        description={`Are you sure you want to delete this ${deleteItemType}? This action cannot be undone.`}
+      />
     </div>
   );
 }
