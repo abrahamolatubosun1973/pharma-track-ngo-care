@@ -35,8 +35,19 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+// Define drug details type
+type DrugDetails = {
+  id: string;
+  name: string;
+  category: string;
+  stock: number;
+  reorderLevel: number;
+  expiryDate: string;
+  status: string;
+};
+
 // Mock data
-const mockDrugs = [
+const mockDrugs: DrugDetails[] = [
   {
     id: "1",
     name: "Paracetamol 500mg",
@@ -102,23 +113,20 @@ const newDrugSchema = z.object({
   expiryDate: z.string().min(1, { message: "Expiry date is required" })
 });
 
-// Define drug details type
-type DrugDetails = {
-  id: string;
-  name: string;
-  category: string;
-  stock: number;
-  reorderLevel: number;
-  expiryDate: string;
-  status: string;
-};
+// Define schema for order more form
+const orderMoreSchema = z.object({
+  quantity: z.coerce.number().min(1, { message: "Quantity must be at least 1" }),
+});
 
 export default function Inventory() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [drugs, setDrugs] = useState(mockDrugs);
+  const [drugs, setDrugs] = useState<DrugDetails[]>(mockDrugs);
   const [selectedDrug, setSelectedDrug] = useState<DrugDetails | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isOrderMoreDialogOpen, setIsOrderMoreDialogOpen] = useState(false);
 
   // Form for adding new drugs
   const newDrugForm = useForm<z.infer<typeof newDrugSchema>>({
@@ -131,6 +139,39 @@ export default function Inventory() {
       expiryDate: ""
     },
   });
+
+  // Form for editing drugs
+  const editDrugForm = useForm<z.infer<typeof newDrugSchema>>({
+    resolver: zodResolver(newDrugSchema),
+    defaultValues: {
+      name: selectedDrug?.name || "",
+      category: selectedDrug?.category || "",
+      stock: selectedDrug?.stock || 0,
+      reorderLevel: selectedDrug?.reorderLevel || 10,
+      expiryDate: selectedDrug?.expiryDate || ""
+    },
+  });
+
+  // Form for ordering more drugs
+  const orderMoreForm = useForm<z.infer<typeof orderMoreSchema>>({
+    resolver: zodResolver(orderMoreSchema),
+    defaultValues: {
+      quantity: 10,
+    },
+  });
+
+  // Reset the edit form when selected drug changes
+  React.useEffect(() => {
+    if (selectedDrug && isEditDialogOpen) {
+      editDrugForm.reset({
+        name: selectedDrug.name,
+        category: selectedDrug.category,
+        stock: selectedDrug.stock,
+        reorderLevel: selectedDrug.reorderLevel,
+        expiryDate: selectedDrug.expiryDate
+      });
+    }
+  }, [selectedDrug, isEditDialogOpen, editDrugForm]);
 
   // Filter drugs by search term
   const filteredDrugs = drugs.filter((drug) =>
@@ -154,7 +195,7 @@ export default function Inventory() {
 
   // Function to add new drug
   const handleAddDrug = (values: z.infer<typeof newDrugSchema>) => {
-    const newDrug = {
+    const newDrug: DrugDetails = {
       id: (drugs.length + 1).toString(),
       ...values,
       status: values.stock < values.reorderLevel ? "low" : "adequate"
@@ -171,11 +212,61 @@ export default function Inventory() {
     newDrugForm.reset();
   };
 
+  // Function to edit drug
+  const handleEditDrug = (values: z.infer<typeof newDrugSchema>) => {
+    if (!selectedDrug) return;
+    
+    const updatedDrugs = drugs.map(drug => 
+      drug.id === selectedDrug.id ? {
+        ...drug,
+        ...values,
+        status: values.stock < values.reorderLevel ? "low" : 
+                new Date(values.expiryDate) < new Date() ? "expired" : "adequate"
+      } : drug
+    );
+    
+    setDrugs(updatedDrugs);
+    setSelectedDrug(null);
+    setIsEditDialogOpen(false);
+    setIsDetailsDialogOpen(false);
+    
+    toast({
+      title: "Drug updated successfully",
+      description: `${values.name} has been updated in the inventory.`
+    });
+  };
+
+  // Function to order more of a drug
+  const handleOrderMore = (values: z.infer<typeof orderMoreSchema>) => {
+    if (!selectedDrug) return;
+    
+    const updatedDrugs = drugs.map(drug => 
+      drug.id === selectedDrug.id ? {
+        ...drug,
+        stock: drug.stock + values.quantity,
+        status: (drug.stock + values.quantity) < drug.reorderLevel ? "low" : 
+                new Date(drug.expiryDate) < new Date() ? "expired" : "adequate"
+      } : drug
+    );
+    
+    setDrugs(updatedDrugs);
+    setSelectedDrug(null);
+    setIsOrderMoreDialogOpen(false);
+    setIsDetailsDialogOpen(false);
+    
+    toast({
+      title: "Order placed successfully",
+      description: `${values.quantity} units of ${selectedDrug.name} have been ordered.`
+    });
+    
+    orderMoreForm.reset();
+  };
+
   // Function to handle file import
   const handleFileImport = () => {
     // In a real application, this would handle CSV/Excel file parsing
     // For demo purposes, we'll just add some sample data
-    const importedDrugs = [
+    const importedDrugs: DrugDetails[] = [
       {
         id: (drugs.length + 1).toString(),
         name: "Aspirin 100mg",
@@ -426,12 +517,19 @@ export default function Inventory() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Dialog>
+                      <Dialog open={isDetailsDialogOpen && selectedDrug?.id === drug.id} onOpenChange={(open) => {
+                        setIsDetailsDialogOpen(open);
+                        if (open) setSelectedDrug(drug);
+                        else setSelectedDrug(null);
+                      }}>
                         <DialogTrigger asChild>
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => setSelectedDrug(drug)}
+                            onClick={() => {
+                              setSelectedDrug(drug);
+                              setIsDetailsDialogOpen(true);
+                            }}
                           >
                             Details
                           </Button>
@@ -481,8 +579,143 @@ export default function Inventory() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Button variant="outline">Edit</Button>
-                            <Button>Order More</Button>
+                            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                              <DialogTrigger asChild>
+                                <Button variant="outline">Edit</Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                  <DialogTitle>Edit Drug</DialogTitle>
+                                  <DialogDescription>
+                                    Update the details of this drug.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <Form {...editDrugForm}>
+                                  <form onSubmit={editDrugForm.handleSubmit(handleEditDrug)} className="space-y-4">
+                                    <FormField
+                                      control={editDrugForm.control}
+                                      name="name"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Drug Name</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <FormField
+                                      control={editDrugForm.control}
+                                      name="category"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Category</FormLabel>
+                                          <FormControl>
+                                            <Input {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <FormField
+                                        control={editDrugForm.control}
+                                        name="stock"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Stock Quantity</FormLabel>
+                                            <FormControl>
+                                              <Input type="number" min="0" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <FormField
+                                        control={editDrugForm.control}
+                                        name="reorderLevel"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Reorder Level</FormLabel>
+                                            <FormControl>
+                                              <Input type="number" min="1" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    </div>
+                                    <FormField
+                                      control={editDrugForm.control}
+                                      name="expiryDate"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Expiry Date</FormLabel>
+                                          <FormControl>
+                                            <Input type="date" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <DialogFooter className="pt-4">
+                                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                                        Cancel
+                                      </Button>
+                                      <Button type="submit">Save Changes</Button>
+                                    </DialogFooter>
+                                  </form>
+                                </Form>
+                              </DialogContent>
+                            </Dialog>
+                            
+                            <Dialog open={isOrderMoreDialogOpen} onOpenChange={setIsOrderMoreDialogOpen}>
+                              <DialogTrigger asChild>
+                                <Button>Order More</Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-[425px]">
+                                <DialogHeader>
+                                  <DialogTitle>Order More Stock</DialogTitle>
+                                  <DialogDescription>
+                                    Request additional units of {selectedDrug?.name}.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <Form {...orderMoreForm}>
+                                  <form onSubmit={orderMoreForm.handleSubmit(handleOrderMore)} className="space-y-4">
+                                    <div className="py-2">
+                                      <div className="flex justify-between pb-2 text-sm">
+                                        <span className="text-muted-foreground">Current Stock:</span>
+                                        <span className="font-medium">{selectedDrug?.stock} units</span>
+                                      </div>
+                                      <div className="flex justify-between pb-4 text-sm">
+                                        <span className="text-muted-foreground">Reorder Level:</span>
+                                        <span className="font-medium">{selectedDrug?.reorderLevel} units</span>
+                                      </div>
+                                    </div>
+                                    <FormField
+                                      control={orderMoreForm.control}
+                                      name="quantity"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Quantity to Order</FormLabel>
+                                          <FormControl>
+                                            <Input type="number" min="1" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    <DialogFooter className="pt-4">
+                                      <Button type="button" variant="outline" onClick={() => setIsOrderMoreDialogOpen(false)}>
+                                        Cancel
+                                      </Button>
+                                      <Button type="submit">Place Order</Button>
+                                    </DialogFooter>
+                                  </form>
+                                </Form>
+                              </DialogContent>
+                            </Dialog>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
