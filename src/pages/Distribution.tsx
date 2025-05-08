@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +19,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { Search, ArrowRight, FileText, Package } from "lucide-react";
+import { Search, ArrowRight, FileText, Package, Map, Route } from "lucide-react";
 import NewDistributionDialog from "@/components/NewDistributionDialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 // Mock distribution data
 const initialDistributions = [
@@ -97,6 +98,22 @@ const initialStateDistributions = [
   },
 ];
 
+// Distribution item type definition
+type DistributionItem = {
+  name: string;
+  quantity: number;
+};
+
+// Distribution type definition
+type Distribution = {
+  id: string;
+  destination: string;
+  destinationType: string;
+  date: string;
+  status: string;
+  items: DistributionItem[];
+};
+
 // Mock destinations based on user role/location
 const destinations = {
   central: [
@@ -120,6 +137,14 @@ export default function Distribution() {
   // State for distributions data
   const [recentDistributions, setRecentDistributions] = useState(initialDistributions);
   const [stateDistributions, setStateDistributions] = useState(initialStateDistributions);
+
+  // View dialog state
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedDistribution, setSelectedDistribution] = useState<Distribution | null>(null);
+
+  // Track dialog state
+  const [trackDialogOpen, setTrackDialogOpen] = useState(false);
+  const [trackingDistribution, setTrackingDistribution] = useState<Distribution | null>(null);
 
   // Determine which data to show based on user's location
   const isStateManager = user?.location?.type === "state";
@@ -153,6 +178,27 @@ export default function Distribution() {
         return "bg-yellow-100 text-yellow-800 hover:bg-yellow-200";
       default:
         return "bg-slate-100 text-slate-800 hover:bg-slate-200";
+    }
+  };
+
+  // Handle view button click
+  const handleViewDetails = (distribution: Distribution) => {
+    setSelectedDistribution(distribution);
+    setViewDialogOpen(true);
+  };
+
+  // Handle track button click
+  const handleTrackDistribution = (distribution: Distribution) => {
+    setTrackingDistribution(distribution);
+    setTrackDialogOpen(true);
+    
+    // Simulate tracking notification
+    if (distribution.status === "in-transit") {
+      setTimeout(() => {
+        toast.success(`Location update for ${distribution.id}`, {
+          description: `Currently at transit point ${Math.floor(Math.random() * 5) + 1}`,
+        });
+      }, 1500);
     }
   };
 
@@ -191,6 +237,238 @@ export default function Distribution() {
         onOpenChange={setIsDialogOpen}
         onDistributionCreated={handleDistributionCreated}
       />
+
+      {/* View Distribution Details Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle>Distribution Details</DialogTitle>
+            <DialogDescription>
+              Complete information about the selected distribution.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedDistribution && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">ID</p>
+                  <p className="text-base">{selectedDistribution.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                  <Badge variant="outline" className={getStatusBadge(selectedDistribution.status)}>
+                    {selectedDistribution.status.charAt(0).toUpperCase() + selectedDistribution.status.slice(1)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Destination</p>
+                  <p className="text-base">{selectedDistribution.destination}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Date</p>
+                  <p className="text-base">{new Date(selectedDistribution.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium mb-2">Items</h3>
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Quantity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedDistribution.items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{item.name}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    toast.success("Distribution report generated");
+                    setViewDialogOpen(false);
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate Report
+                </Button>
+                <Button onClick={() => {
+                  handleTrackDistribution(selectedDistribution);
+                  setViewDialogOpen(false);
+                }}>
+                  <Route className="h-4 w-4 mr-2" />
+                  Track Shipment
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Tracking Dialog */}
+      <Dialog open={trackDialogOpen} onOpenChange={setTrackDialogOpen}>
+        <DialogContent className="sm:max-w-[650px]">
+          <DialogHeader>
+            <DialogTitle>Tracking Information</DialogTitle>
+            <DialogDescription>
+              Real-time tracking for distribution {trackingDistribution?.id}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {trackingDistribution && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">From</p>
+                  <p className="text-base">Central Warehouse</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">To</p>
+                  <p className="text-base">{trackingDistribution.destination}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Current Status</p>
+                  <Badge variant="outline" className={getStatusBadge(trackingDistribution.status)}>
+                    {trackingDistribution.status.charAt(0).toUpperCase() + trackingDistribution.status.slice(1)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Estimated Arrival</p>
+                  <p className="text-base">
+                    {trackingDistribution.status === "delivered" 
+                      ? "Delivered" 
+                      : new Date(
+                          new Date(trackingDistribution.date).getTime() + 3 * 24 * 60 * 60 * 1000
+                        ).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="aspect-video bg-muted rounded-md relative flex items-center justify-center overflow-hidden">
+                {trackingDistribution.status === "delivered" ? (
+                  <div className="text-center p-6">
+                    <Package className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                    <h3 className="text-lg font-medium">Delivery Completed</h3>
+                    <p className="text-muted-foreground">
+                      This shipment was delivered on {new Date(trackingDistribution.date).toLocaleDateString()}
+                    </p>
+                  </div>
+                ) : trackingDistribution.status === "in-transit" ? (
+                  <div className="relative w-full h-full">
+                    <Map className="absolute h-full w-full opacity-10" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white/90 p-6 rounded-lg shadow-lg max-w-sm text-center">
+                        <Route className="h-8 w-8 mx-auto mb-2 text-blue-500 animate-pulse" />
+                        <h3 className="text-lg font-medium">In Transit</h3>
+                        <p className="text-muted-foreground mb-2">
+                          Shipment is currently in transit to {trackingDistribution.destination}
+                        </p>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full w-3/5"></div>
+                        </div>
+                        <p className="text-xs text-right mt-1">60% complete</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center p-6">
+                    <Package className="h-12 w-12 mx-auto mb-2 text-yellow-500" />
+                    <h3 className="text-lg font-medium">Pending Shipment</h3>
+                    <p className="text-muted-foreground">
+                      This distribution is being prepared for shipping
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <h3 className="text-sm font-medium mb-2">Tracking History</h3>
+                <div className="space-y-3">
+                  {trackingDistribution.status === "delivered" && (
+                    <>
+                      <div className="flex gap-3 items-start">
+                        <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                          <Package className="h-3 w-3 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Delivered to recipient</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(trackingDistribution.date).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 items-start">
+                        <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
+                          <Route className="h-3 w-3 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Out for delivery</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(new Date(trackingDistribution.date).getTime() - 2 * 24 * 60 * 60 * 1000).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {trackingDistribution.status === "in-transit" && (
+                    <>
+                      <div className="flex gap-3 items-start">
+                        <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
+                          <Route className="h-3 w-3 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium">In transit</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date().toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className="flex gap-3 items-start">
+                    <div className="h-6 w-6 rounded-full bg-yellow-100 flex items-center justify-center mt-0.5">
+                      <Package className="h-3 w-3 text-yellow-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Shipment prepared</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(new Date(trackingDistribution.date).getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    toast.success("Tracking updates will be sent to your email");
+                    setTrackDialogOpen(false);
+                  }}
+                >
+                  Subscribe to Updates
+                </Button>
+                <Button onClick={() => setTrackDialogOpen(false)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="recent" className="mb-6">
         <TabsList>
@@ -299,12 +577,20 @@ export default function Distribution() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleViewDetails(dist)}
+                        >
                           <FileText className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        <Button variant="ghost" size="sm">
-                          <Package className="h-4 w-4 mr-1" />
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleTrackDistribution(dist)}
+                        >
+                          <Route className="h-4 w-4 mr-1" />
                           Track
                         </Button>
                       </TableCell>
