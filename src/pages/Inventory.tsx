@@ -18,15 +18,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Edit, Trash } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Search, Plus, Edit, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -37,8 +37,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import {
   Select,
   SelectContent,
@@ -47,155 +47,179 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Mock drug categories
-const drugCategories = [
-  "Analgesics",
-  "Antibiotics",
-  "Antidepressants",
-  "Antihypertensives",
-  "Antidiabetics",
-  "Antihistamines",
-  "Corticosteroids",
-  "Vaccines",
-];
-
-// Mock drug locations
-const drugLocations = [
-  { id: "loc-1", name: "Main Pharmacy" },
-  { id: "loc-2", name: "Emergency Room" },
-  { id: "loc-3", name: "Outpatient Clinic" },
-];
-
-// Mock drug data (replace with API call later)
-const initialDrugs = [
-  {
-    id: "drug-1",
-    name: "Paracetamol",
-    category: "Analgesics",
-    stock: 150,
-    reorderLevel: 50,
-    location: "loc-1",
-    status: "Active",
-  },
-  {
-    id: "drug-2",
-    name: "Amoxicillin",
-    category: "Antibiotics",
-    stock: 80,
-    reorderLevel: 30,
-    location: "loc-2",
-    status: "Active",
-  },
-  {
-    id: "drug-3",
-    name: "Metformin",
-    category: "Antidiabetics",
-    stock: 200,
-    reorderLevel: 75,
-    location: "loc-1",
-    status: "Active",
-  },
-  {
-    id: "drug-4",
-    name: "Lisinopril",
-    category: "Antihypertensives",
-    stock: 120,
-    reorderLevel: 40,
-    location: "loc-3",
-    status: "Active",
-  },
-];
-
-// Zod schema for drug details form
-const drugSchema = z.object({
+// Define the schema for the inventory item form
+const formSchema = z.object({
   name: z.string().min(2, {
-    message: "Drug name must be at least 2 characters.",
+    message: "Inventory item name must be at least 2 characters.",
   }),
-  category: z.string().min(1, {
-    message: "Please select a drug category.",
+  category: z.string().min(2, {
+    message: "Category must be at least 2 characters.",
   }),
-  stock: z.number().min(0, {
+  stock: z.string().refine((value) => {
+    const num = Number(value);
+    return !isNaN(num) && num >= 0;
+  }, {
     message: "Stock must be a non-negative number.",
   }),
-  reorderLevel: z.number().min(0, {
+  reorderLevel: z.string().refine((value) => {
+    const num = Number(value);
+    return !isNaN(num) && num >= 0;
+  }, {
     message: "Reorder level must be a non-negative number.",
   }),
+  location: z.string().optional(),
+  status: z.string().optional(),
 });
 
-// Define DrugDetails type based on the schema
-export type DrugDetails = z.infer<typeof drugSchema>;
+// Define the type for the form values based on the schema
+type FormValues = z.infer<typeof formSchema>;
+
+// Define the type for an inventory item
+type InventoryItem = {
+  id: string;
+  name: string;
+  category: string;
+  stock: number;
+  reorderLevel: number;
+  location?: string;
+  status?: string;
+};
 
 export default function Inventory() {
   const { toast } = useToast();
-  const [drugs, setDrugs] = useState(initialDrugs);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedLocation, setSelectedLocation] = useState("loc-1");
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [drugToEdit, setDrugToEdit] = useState<DrugDetails | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  // Filter drugs based on search term and category
-  const filteredDrugs = drugs.filter((drug) => {
-    const searchMatch = drug.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const categoryMatch =
-      selectedCategory === "All" || drug.category === selectedCategory;
-    return searchMatch && categoryMatch;
+  useEffect(() => {
+    // Load data from local storage on component mount
+    const storedData = localStorage.getItem("inventoryData");
+    if (storedData) {
+      setInventoryData(JSON.parse(storedData));
+    }
+  }, []);
+
+  useEffect(() => {
+    // Save data to local storage whenever inventoryData changes
+    localStorage.setItem("inventoryData", JSON.stringify(inventoryData));
+  }, [inventoryData]);
+
+  const filteredInventory = inventoryData.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      stock: "0",
+      reorderLevel: "0",
+      location: "",
+      status: "In Stock",
+    },
   });
 
-  // Function to handle drug creation
-  const handleCreateDrug = (newDrug: DrugDetails) => {
-    const drugWithId = {
-      ...newDrug,
-      id: `drug-${Date.now()}`,
-      location: selectedLocation,
-      status: "Active"
+  // Function to ensure all inventory items have the required fields
+  const ensureCompleteInventoryItem = (item: Partial<InventoryItem>): InventoryItem => {
+    return {
+      id: item.id || `inv-${Date.now()}`,
+      name: item.name || "Unnamed Item",
+      category: item.category || "Uncategorized",
+      stock: item.stock || 0,
+      reorderLevel: item.reorderLevel || 0,
+      location: item.location || "",
+      status: item.status || "In Stock"
     };
-    
-    // Ensure all required fields from DrugDetails are present
-    if (!drugWithId.name) drugWithId.name = "";
-    if (!drugWithId.category) drugWithId.category = "";
-    if (!drugWithId.stock) drugWithId.stock = 0;
-    if (!drugWithId.reorderLevel) drugWithId.reorderLevel = 0;
-    
-    setDrugs([...drugs, drugWithId]);
-    setIsCreateDialogOpen(false);
-    toast({
-      title: "Drug Added",
-      description: `${newDrug.name} has been added to inventory.`,
-    });
   };
 
-  // Function to handle drug editing
-  const handleEditDrug = (drug: DrugDetails) => {
-    setDrugToEdit(drug);
-    setIsEditDialogOpen(true);
+  const handleOpenAddDialog = () => {
+    setIsAddDialogOpen(true);
+    form.reset();
   };
 
-  // Function to handle saving edited drug
-  const handleSaveDrug = (editedDrug: DrugDetails) => {
-    if (!drugToEdit) return;
+  const handleCloseAddDialog = () => {
+    setIsAddDialogOpen(false);
+    form.reset();
+  };
 
-    const updatedDrugs = drugs.map((drug) =>
-      drug.id === drugToEdit.id ? { ...drug, ...editedDrug } : drug
-    );
-    setDrugs(updatedDrugs);
+  const handleOpenEditDialog = (id: string) => {
+    const itemToEdit = inventoryData.find((item) => item.id === id);
+    if (itemToEdit) {
+      setEditingItemId(id);
+      form.setValue("name", itemToEdit.name);
+      form.setValue("category", itemToEdit.category);
+      form.setValue("stock", String(itemToEdit.stock));
+      form.setValue("reorderLevel", String(itemToEdit.reorderLevel));
+      form.setValue("location", itemToEdit.location || "");
+      form.setValue("status", itemToEdit.status || "In Stock");
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleCloseEditDialog = () => {
     setIsEditDialogOpen(false);
-    setDrugToEdit(null);
+    setEditingItemId(null);
+    form.reset();
+  };
+
+  // Update this function to ensure it returns a complete inventory item
+  const handleAddItem = (values: FormValues) => {
+    const newItem = ensureCompleteInventoryItem({
+      id: `inv-${Date.now()}`,
+      name: values.name,
+      category: values.category,
+      stock: Number(values.stock),
+      reorderLevel: Number(values.reorderLevel),
+      location: values.location,
+      status: values.stock > 0 ? "In Stock" : "Out of Stock"
+    });
+
+    setInventoryData([newItem, ...inventoryData]);
+    setIsAddDialogOpen(false);
+    
     toast({
-      title: "Drug Updated",
-      description: `${editedDrug.name} has been updated.`,
+      title: "Inventory Item Added",
+      description: `${values.name} has been added to inventory.`,
     });
   };
 
-  // Function to handle drug deletion
-  const handleDeleteDrug = (drugId: string) => {
-    setDrugs(drugs.filter((drug) => drug.id !== drugId));
+  // This is the function with the type error
+  const handleUpdateItem = (values: FormValues) => {
+    const updatedItem = ensureCompleteInventoryItem({
+      id: editingItemId,
+      name: values.name,
+      category: values.category,
+      stock: Number(values.stock),
+      reorderLevel: Number(values.reorderLevel),
+      location: values.location,
+      status: Number(values.stock) > 0 ? "In Stock" : "Out of Stock"
+    });
+
+    setInventoryData(
+      inventoryData.map(item => 
+        item.id === editingItemId ? updatedItem : item
+      )
+    );
+    
+    setIsEditDialogOpen(false);
+    setEditingItemId(null);
+    
     toast({
-      title: "Drug Deleted",
-      description: "Drug has been removed from inventory.",
+      title: "Inventory Item Updated",
+      description: `${values.name} has been updated.`,
+    });
+  };
+
+  const handleDeleteItem = (id: string) => {
+    setInventoryData(inventoryData.filter((item) => item.id !== id));
+    toast({
+      title: "Inventory Item Deleted",
+      description: "Item has been removed from inventory.",
     });
   };
 
@@ -204,7 +228,7 @@ export default function Inventory() {
       <div className="page-header">
         <h1 className="page-title">Inventory Management</h1>
         <p className="page-description">
-          Manage drug inventory, track stock levels, and set reorder points
+          Manage your stock, track items, and monitor reorder levels
         </p>
       </div>
 
@@ -212,289 +236,264 @@ export default function Inventory() {
         <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search drugs..."
+            placeholder="Search inventory..."
             className="pl-9 w-full sm:w-80"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
+        <Button onClick={handleOpenAddDialog}>
           <Plus className="mr-2 h-4 w-4" />
-          Add Drug
+          Add Item
         </Button>
       </div>
 
-      <Tabs defaultValue="all" className="mb-4">
-        <TabsList>
-          <TabsTrigger value="all" onClick={() => setSelectedCategory("All")}>
-            All
-          </TabsTrigger>
-          {drugCategories.map((category) => (
-            <TabsTrigger
-              key={category}
-              value={category}
-              onClick={() => setSelectedCategory(category)}
-            >
-              {category}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value="all" />
-        {drugCategories.map((category) => (
-          <TabsContent key={category} value={category} />
-        ))}
-      </Tabs>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Drug Inventory</CardTitle>
-            <CardDescription>
-              List of all drugs in the inventory
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Reorder Level</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+      <Card>
+        <CardHeader>
+          <CardTitle>Inventory List</CardTitle>
+          <CardDescription>
+            A comprehensive list of all items in your inventory
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Stock</TableHead>
+                  <TableHead>Reorder Level</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredInventory.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.category}</TableCell>
+                    <TableCell>{item.stock}</TableCell>
+                    <TableCell>{item.reorderLevel}</TableCell>
+                    <TableCell>{item.location}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={item.stock <= item.reorderLevel ? "destructive" : "secondary"}
+                      >
+                        {item.stock <= item.reorderLevel ? "Low Stock" : "In Stock"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditDialog(item.id)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDrugs.map((drug) => (
-                    <TableRow key={drug.id}>
-                      <TableCell className="font-medium">{drug.name}</TableCell>
-                      <TableCell>{drug.category}</TableCell>
-                      <TableCell>{drug.stock}</TableCell>
-                      <TableCell>{drug.reorderLevel}</TableCell>
-                      <TableCell>
-                        {
-                          drugLocations.find((loc) => loc.id === drug.location)
-                            ?.name
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={drug.stock <= drug.reorderLevel ? "destructive" : "secondary"}
-                        >
-                          {drug.stock <= drug.reorderLevel ? "Low Stock" : drug.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditDrug(drug)}
-                        >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteDrug(drug.id)}
-                        >
-                          <Trash className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Stock Levels</CardTitle>
-            <CardDescription>
-              Current stock levels across all locations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {drugLocations.map((location) => {
-                const locationDrugs = drugs.filter(
-                  (drug) => drug.location === location.id
-                );
-                const totalStock = locationDrugs.reduce(
-                  (acc, drug) => acc + drug.stock,
-                  0
-                );
-                return (
-                  <div
-                    key={location.id}
-                    className="flex justify-between items-center"
-                  >
-                    <span className="text-sm">{location.name}</span>
-                    <Badge variant="secondary">{totalStock} Items</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Select onValueChange={setSelectedLocation}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a location" />
-              </SelectTrigger>
-              <SelectContent>
-                {drugLocations.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name}
-                  </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </CardFooter>
-        </Card>
-      </div>
+                {filteredInventory.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-10">
+                      No inventory items found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Create Drug Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* Add Inventory Item Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={handleCloseAddDialog}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New Drug</DialogTitle>
+            <DialogTitle>Add Inventory Item</DialogTitle>
             <DialogDescription>
-              Create a new drug entry in the inventory
+              Add a new item to your inventory
             </DialogDescription>
           </DialogHeader>
-          <DrugForm
-            onSubmit={handleCreateDrug}
-            onCancel={() => setIsCreateDialogOpen(false)}
-          />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleAddItem)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Item Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Category" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="stock"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="reorderLevel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reorder Level</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Warehouse Aisle 3" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleCloseAddDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit">Add Item</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Drug Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* Edit Inventory Item Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit Drug</DialogTitle>
+            <DialogTitle>Edit Inventory Item</DialogTitle>
             <DialogDescription>
-              Edit drug information in the inventory
+              Edit details of the selected inventory item
             </DialogDescription>
           </DialogHeader>
-          <DrugForm
-            onSubmit={handleSaveDrug}
-            onCancel={() => setIsEditDialogOpen(false)}
-            initialValues={drugToEdit || undefined}
-          />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleUpdateItem)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Item Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Category" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="stock"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stock</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="reorderLevel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reorder Level</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Warehouse Aisle 3" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleCloseEditDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit">Update Item</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-type DrugFormProps = {
-  onSubmit: (data: DrugDetails) => void;
-  onCancel: () => void;
-  initialValues?: DrugDetails;
-};
-
-function DrugForm({ onSubmit, onCancel, initialValues }: DrugFormProps) {
-  const form = useForm<DrugDetails>({
-    resolver: zodResolver(drugSchema),
-    defaultValues: initialValues,
-    mode: "onChange",
-  });
-
-  function handleSubmit(values: DrugDetails) {
-    onSubmit(values);
-    form.reset();
-  }
-
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Drug Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Drug Name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {drugCategories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="stock"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stock</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="Stock" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="reorderLevel"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Reorder Level</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="Reorder Level" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="flex justify-end space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!form.formState.isValid}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Form>
   );
 }

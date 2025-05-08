@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Clipboard, ClipboardCheck, User, AlertCircle, Pills } from "lucide-react";
+import { Search, Clipboard, ClipboardCheck, User, AlertCircle, Pill } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { PatientDetailsDialog } from "@/components/PatientDetailsDialog";
@@ -578,7 +578,7 @@ export default function Dispensing() {
                   onClick={() => setIsAddMedicationDialogOpen(true)}
                   disabled={!selectedPatient}
                 >
-                  <Pills className="h-4 w-4 mr-2" />
+                  <Pill className="h-4 w-4 mr-2" />
                   Add Medication
                 </Button>
               </div>
@@ -596,7 +596,7 @@ export default function Dispensing() {
                         className="mt-4"
                         onClick={() => setIsAddMedicationDialogOpen(true)}
                       >
-                        <Pills className="h-4 w-4 mr-2" />
+                        <Pill className="h-4 w-4 mr-2" />
                         Add Medication
                       </Button>
                     </>
