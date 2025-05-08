@@ -12,7 +12,28 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Search, Package, Plus } from "lucide-react";
+import { Search, Package, Plus, FileCheck, FileDown } from "lucide-react";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { 
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from "@/components/ui/form";
+import { toast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 // Mock data
 const mockDrugs = [
@@ -72,10 +93,44 @@ const mockDrugs = [
   },
 ];
 
+// Define schema for new drug form
+const newDrugSchema = z.object({
+  name: z.string().min(1, { message: "Drug name is required" }),
+  category: z.string().min(1, { message: "Category is required" }),
+  stock: z.coerce.number().min(0, { message: "Stock must be 0 or higher" }),
+  reorderLevel: z.coerce.number().min(1, { message: "Reorder level is required" }),
+  expiryDate: z.string().min(1, { message: "Expiry date is required" })
+});
+
+// Define drug details type
+type DrugDetails = {
+  id: string;
+  name: string;
+  category: string;
+  stock: number;
+  reorderLevel: number;
+  expiryDate: string;
+  status: string;
+};
+
 export default function Inventory() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [drugs, setDrugs] = useState(mockDrugs);
+  const [selectedDrug, setSelectedDrug] = useState<DrugDetails | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+
+  // Form for adding new drugs
+  const newDrugForm = useForm<z.infer<typeof newDrugSchema>>({
+    resolver: zodResolver(newDrugSchema),
+    defaultValues: {
+      name: "",
+      category: "",
+      stock: 0,
+      reorderLevel: 10,
+      expiryDate: ""
+    },
+  });
 
   // Filter drugs by search term
   const filteredDrugs = drugs.filter((drug) =>
@@ -95,6 +150,59 @@ export default function Inventory() {
       default:
         return "bg-slate-100 text-slate-800 hover:bg-slate-200";
     }
+  };
+
+  // Function to add new drug
+  const handleAddDrug = (values: z.infer<typeof newDrugSchema>) => {
+    const newDrug = {
+      id: (drugs.length + 1).toString(),
+      ...values,
+      status: values.stock < values.reorderLevel ? "low" : "adequate"
+    };
+    
+    setDrugs([...drugs, newDrug]);
+    
+    toast({
+      title: "Drug added successfully",
+      description: `${values.name} has been added to the inventory.`
+    });
+    
+    // Reset form
+    newDrugForm.reset();
+  };
+
+  // Function to handle file import
+  const handleFileImport = () => {
+    // In a real application, this would handle CSV/Excel file parsing
+    // For demo purposes, we'll just add some sample data
+    const importedDrugs = [
+      {
+        id: (drugs.length + 1).toString(),
+        name: "Aspirin 100mg",
+        category: "NSAID",
+        stock: 150,
+        reorderLevel: 30,
+        expiryDate: "2024-11-30",
+        status: "adequate"
+      },
+      {
+        id: (drugs.length + 2).toString(),
+        name: "Cetirizine 10mg",
+        category: "Antihistamine",
+        stock: 75,
+        reorderLevel: 25,
+        expiryDate: "2025-01-15",
+        status: "adequate"
+      }
+    ];
+    
+    setDrugs([...drugs, ...importedDrugs]);
+    setIsImportDialogOpen(false);
+    
+    toast({
+      title: "Import successful",
+      description: `${importedDrugs.length} drugs have been imported.`
+    });
   };
 
   return (
@@ -118,14 +226,144 @@ export default function Inventory() {
         </div>
 
         <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-          <Button variant="outline">
-            <Package className="mr-2 h-4 w-4" />
-            Import
-          </Button>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Drug
-          </Button>
+          {/* Import Button with Dialog */}
+          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <FileDown className="mr-2 h-4 w-4" />
+                Import
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import Drug Inventory</DialogTitle>
+                <DialogDescription>
+                  Upload a CSV or Excel file with your drug inventory data.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                  <FileCheck className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <p className="mt-2 text-sm font-medium">
+                    Drag and drop your file here, or click to browse
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Supports CSV and Excel files
+                  </p>
+                  <Button variant="outline" className="mt-4" size="sm">
+                    Select File
+                  </Button>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">File requirements:</p>
+                  <ul className="list-disc pl-5 mt-1 text-muted-foreground">
+                    <li>Headers: Name, Category, Stock, Reorder Level, Expiry Date</li>
+                    <li>Maximum file size: 5MB</li>
+                  </ul>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleFileImport}>
+                  Import Now
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add New Drug Button with Dialog */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add New Drug
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Drug</DialogTitle>
+                <DialogDescription>
+                  Enter the details of the new drug to add to the inventory.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...newDrugForm}>
+                <form onSubmit={newDrugForm.handleSubmit(handleAddDrug)} className="space-y-4">
+                  <FormField
+                    control={newDrugForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Drug Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Paracetamol 500mg" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={newDrugForm.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Analgesic" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={newDrugForm.control}
+                      name="stock"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Stock Quantity</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={newDrugForm.control}
+                      name="reorderLevel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reorder Level</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="1" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={newDrugForm.control}
+                    name="expiryDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Expiry Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter className="pt-4">
+                    <Button type="submit">Add Drug</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -188,9 +426,66 @@ export default function Inventory() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Details
-                      </Button>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setSelectedDrug(drug)}
+                          >
+                            Details
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px]">
+                          <DialogHeader>
+                            <DialogTitle>Drug Details</DialogTitle>
+                            <DialogDescription>
+                              Detailed information about this medication.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="py-4">
+                            <div className="space-y-4">
+                              <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-semibold">Drug Name:</h3>
+                                <p>{drug.name}</p>
+                              </div>
+                              <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-semibold">Category:</h3>
+                                <p>{drug.category}</p>
+                              </div>
+                              <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-semibold">Current Stock:</h3>
+                                <p>{drug.stock} units</p>
+                              </div>
+                              <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-semibold">Reorder Level:</h3>
+                                <p>{drug.reorderLevel} units</p>
+                              </div>
+                              <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-semibold">Expiry Date:</h3>
+                                <p>{new Date(drug.expiryDate).toLocaleDateString()}</p>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <h3 className="font-semibold">Status:</h3>
+                                <Badge
+                                  variant="outline"
+                                  className={getBadgeVariant(drug.status)}
+                                >
+                                  {drug.status === "low"
+                                    ? "Low Stock"
+                                    : drug.status === "expired"
+                                    ? "Expired"
+                                    : "In Stock"}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline">Edit</Button>
+                            <Button>Order More</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </TableCell>
                   </TableRow>
                 );
