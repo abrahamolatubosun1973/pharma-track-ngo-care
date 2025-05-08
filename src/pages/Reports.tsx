@@ -12,15 +12,134 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { FileText, Download, BarChart2, Activity, Database } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Reports() {
   const { user } = useAuth();
   const [datePeriod, setDatePeriod] = useState("month");
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Determine report types based on user role
   const isAdmin = user?.role === "admin";
   const isState = user?.location?.type === "state";
   const isFacility = user?.location?.type === "facility";
+
+  // Handler for generating reports
+  const handleGenerateReport = () => {
+    setIsGenerating(true);
+    
+    // Simulate report generation with a timeout
+    setTimeout(() => {
+      setIsGenerating(false);
+      toast.success("Report generated successfully");
+    }, 1500);
+  };
+
+  // Handler for exporting as CSV
+  const handleExportCSV = () => {
+    toast.loading("Preparing CSV export...", { duration: 1000 });
+    
+    // Simulate CSV generation process
+    setTimeout(() => {
+      // Create mock data for CSV
+      const currentTab = document.querySelector('[aria-selected="true"]')?.getAttribute('value') || 'inventory';
+      const headers = getHeadersForTab(currentTab);
+      const mockData = generateMockData(currentTab, 10);
+      
+      // Convert data to CSV format
+      const csvContent = [
+        headers.join(','),
+        ...mockData.map(row => headers.map(header => row[header] || '').join(','))
+      ].join('\n');
+      
+      // Create and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${currentTab}-report-${getDateString()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("CSV exported successfully");
+    }, 1200);
+  };
+
+  // Handler for exporting as PDF
+  const handleExportPDF = () => {
+    toast.loading("Preparing PDF export...", { duration: 1500 });
+    
+    // Simulate PDF generation process
+    setTimeout(() => {
+      const currentTab = document.querySelector('[aria-selected="true"]')?.getAttribute('value') || 'inventory';
+      toast.success(`PDF export of ${currentTab} report complete`, {
+        description: `${currentTab}-report-${getDateString()}.pdf has been downloaded`
+      });
+    }, 1800);
+  };
+  
+  // Helper function to get date string for filenames
+  const getDateString = () => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+  
+  // Helper function to get headers for each tab
+  const getHeadersForTab = (tab) => {
+    switch(tab) {
+      case 'inventory':
+        return ['Item Code', 'Item Name', 'Category', 'Unit', 'Quantity', 'Expiry Date', 'Value'];
+      case 'distribution':
+        return ['Date', 'From', 'To', 'Item Code', 'Item Name', 'Quantity', 'Batch No'];
+      case 'patients':
+        return ['Visit Date', 'Patient ID', 'Name', 'Age', 'Gender', 'Diagnosis', 'Medication', 'Quantity'];
+      default:
+        return ['Date', 'Item', 'Value'];
+    }
+  };
+  
+  // Helper function to generate mock data for exports
+  const generateMockData = (tab, count) => {
+    const data = [];
+    for (let i = 0; i < count; i++) {
+      if (tab === 'inventory') {
+        data.push({
+          'Item Code': `MED${1000 + i}`,
+          'Item Name': `Medication ${i+1}`,
+          'Category': ['Antibiotics', 'Analgesics', 'Antivirals'][i % 3],
+          'Unit': 'Tablet',
+          'Quantity': Math.floor(Math.random() * 1000) + 100,
+          'Expiry Date': `2026-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+          'Value': `₦${(Math.random() * 10000 + 1000).toFixed(2)}`
+        });
+      } else if (tab === 'distribution') {
+        data.push({
+          'Date': `2025-${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+          'From': 'Central Store',
+          'To': ['Abia State', 'Enugu State', 'Imo State'][i % 3],
+          'Item Code': `MED${1000 + i}`,
+          'Item Name': `Medication ${i+1}`,
+          'Quantity': Math.floor(Math.random() * 500) + 50,
+          'Batch No': `BT${2000 + i}`
+        });
+      } else if (tab === 'patients') {
+        data.push({
+          'Visit Date': `2025-${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+          'Patient ID': `PT${10000 + i}`,
+          'Name': `Patient ${i+1}`,
+          'Age': Math.floor(Math.random() * 70) + 18,
+          'Gender': i % 2 === 0 ? 'Male' : 'Female',
+          'Diagnosis': ['Malaria', 'Typhoid', 'Hypertension', 'Diabetes'][i % 4],
+          'Medication': `Medication ${i+1}`,
+          'Quantity': Math.floor(Math.random() * 30) + 5
+        });
+      }
+    }
+    return data;
+  };
   
   return (
     <div className="page-container">
@@ -50,9 +169,9 @@ export default function Reports() {
               <option value="quarter">Last 90 days</option>
               <option value="year">Last 365 days</option>
             </select>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleGenerateReport} disabled={isGenerating}>
               <FileText className="mr-2 h-4 w-4" />
-              Generate Report
+              {isGenerating ? 'Generating...' : 'Generate Report'}
             </Button>
           </div>
         </div>
@@ -116,11 +235,11 @@ export default function Reports() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportCSV}>
                 <Download className="mr-2 h-4 w-4" />
                 Export as CSV
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportPDF}>
                 <FileText className="mr-2 h-4 w-4" />
                 Export as PDF
               </Button>
@@ -142,7 +261,7 @@ export default function Reports() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" onClick={handleExportCSV}>
                   <Download className="mr-2 h-4 w-4" />
                   Download Expiry Report
                 </Button>
@@ -163,7 +282,7 @@ export default function Reports() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" onClick={handleExportPDF}>
                   <FileText className="mr-2 h-4 w-4" />
                   View Detailed Breakdown
                 </Button>
@@ -237,11 +356,11 @@ export default function Reports() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportCSV}>
                 <Download className="mr-2 h-4 w-4" />
                 Export as CSV
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleExportPDF}>
                 <FileText className="mr-2 h-4 w-4" />
                 Export as PDF
               </Button>
@@ -303,11 +422,11 @@ export default function Reports() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleExportCSV}>
                   <Download className="mr-2 h-4 w-4" />
                   Export as CSV
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleExportPDF}>
                   <FileText className="mr-2 h-4 w-4" />
                   Export as PDF
                 </Button>
