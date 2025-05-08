@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search, ArrowRight, FileText, Package } from "lucide-react";
+import NewDistributionDialog from "@/components/NewDistributionDialog";
 
 // Mock distribution data
 const recentDistributions = [
@@ -114,6 +115,7 @@ export default function Distribution() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("recent");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Determine which data to show based on user's location
   const isStateManager = user?.location?.type === "state";
@@ -161,11 +163,17 @@ export default function Distribution() {
           />
         </div>
 
-        <Button>
+        <Button onClick={() => setIsDialogOpen(true)}>
           <ArrowRight className="mr-2 h-4 w-4" />
           New Distribution
         </Button>
       </div>
+
+      {/* Add the New Distribution dialog */}
+      <NewDistributionDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+      />
 
       <Tabs defaultValue="recent" className="mb-6">
         <TabsList>
