@@ -83,10 +83,14 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     <div className={`h-full bg-sidebar flex flex-col border-r transition-all duration-300 ${collapsed ? "items-center" : ""}`}>
       <div className={`p-4 border-b ${collapsed ? "flex justify-center" : ""}`}>
         <div className="flex items-center gap-2">
-          <div className="bg-primary rounded-md p-1">
-            <Package className="h-5 w-5 text-primary-foreground" />
+          <div className="rounded-md">
+            <img 
+              src="/lovable-uploads/8fe3b472-30d4-4b11-88f3-e49e585a7b56.png" 
+              alt="CARITAS logo" 
+              className="h-8 w-8 object-contain" 
+            />
           </div>
-          {!collapsed && <h1 className="font-bold text-lg">PharmTrack</h1>}
+          {!collapsed && <h1 className="font-bold text-lg">CARITAS</h1>}
         </div>
       </div>
 

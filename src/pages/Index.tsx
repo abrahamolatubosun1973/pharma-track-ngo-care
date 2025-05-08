@@ -20,7 +20,7 @@ const Index = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-pharma-100 via-background to-wellness-100">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-pharma-800">PharmTrack NGO Care</h1>
+        <h1 className="text-3xl font-bold text-pharma-800">CARITAS NGO Care</h1>
         <p className="text-xl text-muted-foreground mt-2">
           Loading application...
         </p>

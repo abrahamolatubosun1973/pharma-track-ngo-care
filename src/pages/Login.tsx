@@ -43,7 +43,7 @@ export default function Login() {
       await login(values.email, values.password);
       toast({
         title: "Login successful",
-        description: "Welcome to PharmTrack NGO Care",
+        description: "Welcome to CARITAS NGO Care",
       });
       navigate("/dashboard");
     } catch (error) {
@@ -62,7 +62,14 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-pharma-100 via-background to-wellness-100">
       <div className="w-full max-w-md px-4">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-pharma-800">PharmTrack NGO Care</h1>
+          <div className="flex justify-center mb-3">
+            <img 
+              src="/lovable-uploads/8fe3b472-30d4-4b11-88f3-e49e585a7b56.png" 
+              alt="CARITAS logo" 
+              className="h-16 w-16 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-pharma-800">CARITAS NGO Care</h1>
           <p className="text-muted-foreground">
             Comprehensive pharmaceutical management system
           </p>
