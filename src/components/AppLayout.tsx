@@ -4,12 +4,13 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Sidebar from "./Sidebar";
 import { Button } from "@/components/ui/button";
-import { Menu, Bell } from "lucide-react";
+import { Menu, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function AppLayout() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isMobile = useIsMobile();
 
   // If still loading, show loading state
@@ -26,15 +27,44 @@ export default function AppLayout() {
     return <Navigate to="/login" />;
   }
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const toggleSidebarCollapse = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile sidebar */}
       <div
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:w-64`}
+        } fixed inset-y-0 left-0 z-50 ${
+          sidebarCollapsed ? "w-16" : "w-64"
+        } transition-all duration-300 ease-in-out lg:translate-x-0 lg:static ${
+          sidebarCollapsed ? "lg:w-16" : "lg:w-64"
+        }`}
       >
-        <Sidebar />
+        <div className="relative h-full">
+          <Sidebar collapsed={sidebarCollapsed} />
+          
+          {/* Toggle collapse button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebarCollapse}
+            className="absolute top-4 -right-3 bg-card border shadow-sm rounded-full hidden lg:flex"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Main content */}
@@ -45,7 +75,7 @@ export default function AppLayout() {
             variant="ghost"
             size="icon"
             className="lg:hidden"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={toggleSidebar}
           >
             <Menu className="h-5 w-5" />
           </Button>
@@ -78,7 +108,7 @@ export default function AppLayout() {
       {sidebarOpen && isMobile && (
         <div 
           className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={toggleSidebar}
         />
       )}
     </div>

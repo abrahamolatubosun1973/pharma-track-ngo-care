@@ -1,42 +1,18 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+
+/* Sidebar link styles */
+.sidebar-link {
+  @apply flex items-center gap-3 py-2 px-3 text-sm rounded-md text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.sidebar-link-active {
+  @apply bg-sidebar-accent text-sidebar-accent-foreground font-medium;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Collapsed sidebar link styles */
+.sidebar-link-collapsed {
+  @apply flex justify-center py-2 px-2 text-sm rounded-md text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+.sidebar-link-collapsed-active {
+  @apply bg-sidebar-accent text-sidebar-accent-foreground font-medium;
 }
