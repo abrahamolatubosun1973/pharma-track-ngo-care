@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,9 +22,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search, ArrowRight, FileText, Package, Map, Route } from "lucide-react";
 import NewDistributionDialog from "@/components/NewDistributionDialog";
-import { ViewDistributionDialog, Distribution } from "@/components/ViewDistributionDialog";
+import { ViewDistributionDialog } from "@/components/ViewDistributionDialog";
 import { TrackDistributionDialog } from "@/components/TrackDistributionDialog";
 import { toast } from "sonner";
+import type { Distribution } from "@/components/ViewDistributionDialog";
 
 // Mock distribution data
 const initialDistributions = [

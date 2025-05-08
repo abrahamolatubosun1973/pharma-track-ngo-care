@@ -55,8 +55,8 @@ export function TrackDistributionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <p className="text-sm font-medium text-muted-foreground">From</p>
               <p className="text-base">Central Warehouse</p>
@@ -92,71 +92,66 @@ export function TrackDistributionDialog({
             </div>
           </div>
 
-          <div className="aspect-video bg-muted rounded-md relative flex items-center justify-center overflow-hidden">
+          <div className="h-32 bg-muted rounded-md relative flex items-center justify-center overflow-hidden">
             {distribution.status === "delivered" ? (
-              <div className="text-center p-6">
-                <Package className="h-12 w-12 mx-auto mb-2 text-green-500" />
-                <h3 className="text-lg font-medium">Delivery Completed</h3>
-                <p className="text-muted-foreground">
-                  This shipment was delivered on{" "}
-                  {new Date(distribution.date).toLocaleDateString()}
+              <div className="text-center p-2">
+                <Package className="h-8 w-8 mx-auto mb-1 text-green-500" />
+                <h3 className="text-base font-medium">Delivery Completed</h3>
+                <p className="text-xs text-muted-foreground">
+                  Delivered on {new Date(distribution.date).toLocaleDateString()}
                 </p>
               </div>
             ) : distribution.status === "in-transit" ? (
               <div className="relative w-full h-full">
                 <Map className="absolute h-full w-full opacity-10" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-white/90 p-6 rounded-lg shadow-lg max-w-sm text-center">
-                    <Route className="h-8 w-8 mx-auto mb-2 text-blue-500 animate-pulse" />
-                    <h3 className="text-lg font-medium">In Transit</h3>
-                    <p className="text-muted-foreground mb-2">
-                      Shipment is currently in transit to{" "}
-                      {distribution.destination}
-                    </p>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="bg-white/90 p-3 rounded-lg shadow-lg max-w-sm text-center">
+                    <Route className="h-6 w-6 mx-auto mb-1 text-blue-500 animate-pulse" />
+                    <h3 className="text-base font-medium">In Transit</h3>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden mt-1">
                       <div className="h-full bg-blue-500 rounded-full w-3/5"></div>
                     </div>
-                    <p className="text-xs text-right mt-1">60% complete</p>
+                    <p className="text-xs text-right mt-0.5">60% complete</p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center p-6">
-                <Package className="h-12 w-12 mx-auto mb-2 text-yellow-500" />
-                <h3 className="text-lg font-medium">Pending Shipment</h3>
-                <p className="text-muted-foreground">
-                  This distribution is being prepared for shipping
+              <div className="text-center p-2">
+                <Package className="h-8 w-8 mx-auto mb-1 text-yellow-500" />
+                <h3 className="text-base font-medium">Pending Shipment</h3>
+                <p className="text-xs text-muted-foreground">
+                  Preparing for shipping
                 </p>
               </div>
             )}
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-2">Tracking History</h3>
-            <div className="space-y-3">
+            <h3 className="text-xs font-medium mb-1.5">Recent Updates</h3>
+            <div className="space-y-2 max-h-28 overflow-y-auto">
               {distribution.status === "delivered" && (
                 <>
-                  <div className="flex gap-3 items-start">
-                    <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
-                      <Package className="h-3 w-3 text-green-600" />
+                  <div className="flex gap-2 items-start">
+                    <div className="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                      <Package className="h-2.5 w-2.5 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-medium">Delivered to recipient</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm font-medium">Delivered</p>
+                      <p className="text-xs text-muted-foreground">
                         {new Date(distribution.date).toLocaleString()}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-3 items-start">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                      <Route className="h-3 w-3 text-blue-600" />
+                  <div className="flex gap-2 items-start">
+                    <div className="h-5 w-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
+                      <Route className="h-2.5 w-2.5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="font-medium">Out for delivery</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm font-medium">Out for delivery</p>
+                      <p className="text-xs text-muted-foreground">
                         {new Date(
                           new Date(distribution.date).getTime() -
-                            2 * 24 * 60 * 60 * 1000
+                            1 * 24 * 60 * 60 * 1000
                         ).toLocaleString()}
                       </p>
                     </div>
@@ -165,31 +160,29 @@ export function TrackDistributionDialog({
               )}
 
               {distribution.status === "in-transit" && (
-                <>
-                  <div className="flex gap-3 items-start">
-                    <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
-                      <Route className="h-3 w-3 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium">In transit</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date().toLocaleString()}
-                      </p>
-                    </div>
+                <div className="flex gap-2 items-start">
+                  <div className="h-5 w-5 rounded-full bg-blue-100 flex items-center justify-center mt-0.5">
+                    <Route className="h-2.5 w-2.5 text-blue-600" />
                   </div>
-                </>
+                  <div>
+                    <p className="text-sm font-medium">In transit</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date().toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               )}
 
-              <div className="flex gap-3 items-start">
-                <div className="h-6 w-6 rounded-full bg-yellow-100 flex items-center justify-center mt-0.5">
-                  <Package className="h-3 w-3 text-yellow-600" />
+              <div className="flex gap-2 items-start">
+                <div className="h-5 w-5 rounded-full bg-yellow-100 flex items-center justify-center mt-0.5">
+                  <Package className="h-2.5 w-2.5 text-yellow-600" />
                 </div>
                 <div>
-                  <p className="font-medium">Shipment prepared</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm font-medium">Prepared</p>
+                  <p className="text-xs text-muted-foreground">
                     {new Date(
                       new Date(distribution.date).getTime() -
-                        3 * 24 * 60 * 60 * 1000
+                        2 * 24 * 60 * 60 * 1000
                     ).toLocaleString()}
                   </p>
                 </div>
@@ -197,11 +190,13 @@ export function TrackDistributionDialog({
             </div>
           </div>
 
-          <div className="flex justify-end space-x-2 pt-2">
-            <Button variant="outline" onClick={handleSubscribeUpdates}>
+          <div className="flex justify-end space-x-2 pt-1">
+            <Button variant="outline" size="sm" onClick={handleSubscribeUpdates}>
               Subscribe to Updates
             </Button>
-            <Button onClick={() => onOpenChange(false)}>Close</Button>
+            <Button size="sm" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
           </div>
         </div>
       </DialogContent>
