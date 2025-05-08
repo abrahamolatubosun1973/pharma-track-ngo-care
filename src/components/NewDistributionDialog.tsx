@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose
+  DialogClose,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,11 +35,7 @@ import { Package, Truck } from "lucide-react";
 
 // Validation schema for the form
 const formSchema = z.object({
-  destination: z.string().min(1, { message: "Destination is required" }),
-  items: z.array(z.object({
-    name: z.string().min(1, { message: "Item name is required" }),
-    quantity: z.number().min(1, { message: "Quantity must be at least 1" })
-  })).min(1, { message: "At least one item is required" })
+  destination: z.string().min(1, { message: "Destination is required" })
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -87,6 +84,7 @@ export default function NewDistributionDialog({
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Get destinations based on user's role
   const destinations = mockGetDestinations(user?.location || { type: "central", name: "Central" });
@@ -95,10 +93,16 @@ export default function NewDistributionDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      destination: "",
-      items: []
+      destination: ""
     }
   });
+
+  // Reset form error when items change
+  useEffect(() => {
+    if (selectedItems.length > 0) {
+      setFormError(null);
+    }
+  }, [selectedItems]);
 
   // Add item to the selected items list
   const addItem = () => {
@@ -137,6 +141,12 @@ export default function NewDistributionDialog({
 
   // Handle form submission
   const onSubmit = (data: FormData) => {
+    // Validate that items exist
+    if (selectedItems.length === 0) {
+      setFormError("At least one item is required");
+      return;
+    }
+
     setIsSubmitting(true);
     
     // Create the new distribution object
@@ -184,6 +194,9 @@ export default function NewDistributionDialog({
             <Package className="h-5 w-5" />
             New Distribution
           </DialogTitle>
+          <DialogDescription>
+            Create a new distribution to send pharmaceutical supplies to destinations.
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
@@ -280,9 +293,10 @@ export default function NewDistributionDialog({
                 )}
               </div>
               
-              {selectedItems.length === 0 && (
+              {/* Display form error for items */}
+              {formError && (
                 <p className="text-sm text-destructive">
-                  {form.formState.errors.items?.message}
+                  {formError}
                 </p>
               )}
             </div>
@@ -293,7 +307,7 @@ export default function NewDistributionDialog({
               </DialogClose>
               <Button 
                 type="submit" 
-                disabled={selectedItems.length === 0 || isSubmitting}
+                disabled={isSubmitting}
               >
                 <Truck className="mr-2 h-4 w-4" />
                 {isSubmitting ? "Creating..." : "Create Distribution"}
