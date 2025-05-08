@@ -40,15 +40,56 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+// Mock drug items based on user location
+const getMockDrugItems = (userRole: string, userLocationId?: string) => {
+  // Items in central inventory (available to admin)
+  const centralDrugs = [
+    { id: "drug1", name: "Paracetamol 500mg" },
+    { id: "drug2", name: "Amoxicillin 250mg" },
+    { id: "drug3", name: "Metformin 500mg" },
+    { id: "drug4", name: "Ibuprofen 400mg" },
+    { id: "drug5", name: "Omeprazole 20mg" },
+    { id: "drug6", name: "Loratadine 10mg" }
+  ];
+  
+  // Items in Abia state inventory
+  const abiaDrugs = [
+    { id: "drug3", name: "Metformin 500mg" },
+    { id: "drug4", name: "Ibuprofen 400mg" },
+    { id: "drug7", name: "Amlodipine 5mg" },
+    { id: "drug8", name: "Atorvastatin 20mg" }
+  ];
+  
+  // Items in other states
+  const otherStateDrugs = [
+    { id: "drug9", name: "Ciprofloxacin 500mg" },
+    { id: "drug10", name: "Diazepam 5mg" }
+  ];
+  
+  if (userRole === "admin") {
+    return centralDrugs;
+  } else if (userRole === "state_manager") {
+    if (userLocationId === "abia") {
+      return abiaDrugs;
+    }
+    return otherStateDrugs;
+  }
+  
+  return [];
+};
+
 // Mock destinations based on user role
-const mockGetDestinations = (location: { type: string, name: string }) => {
-  if (location?.type === "central") {
+const getDestinations = (user?: { 
+  role?: string; 
+  location?: { type?: string; id?: string; name?: string } 
+}) => {
+  if (user?.role === "admin") {
     return [
       { id: "abia", name: "Abia State", type: "state" },
       { id: "enugu", name: "Enugu State", type: "state" },
       { id: "imo", name: "Imo State", type: "state" }
     ];
-  } else if (location?.type === "state") {
+  } else if (user?.role === "state_manager") {
     return [
       { id: "facility1", name: "General Hospital Umuahia", type: "facility" },
       { id: "facility2", name: "Primary Health Center Aba", type: "facility" },
@@ -57,16 +98,6 @@ const mockGetDestinations = (location: { type: string, name: string }) => {
   }
   return [];
 };
-
-// Mock drug items
-const mockDrugItems = [
-  { id: "drug1", name: "Paracetamol 500mg" },
-  { id: "drug2", name: "Amoxicillin 250mg" },
-  { id: "drug3", name: "Metformin 500mg" },
-  { id: "drug4", name: "Ibuprofen 400mg" },
-  { id: "drug5", name: "Omeprazole 20mg" },
-  { id: "drug6", name: "Loratadine 10mg" }
-];
 
 interface NewDistributionDialogProps {
   open: boolean;
@@ -87,7 +118,10 @@ export default function NewDistributionDialog({
   const [formError, setFormError] = useState<string | null>(null);
 
   // Get destinations based on user's role
-  const destinations = mockGetDestinations(user?.location || { type: "central", name: "Central" });
+  const destinations = getDestinations(user);
+  
+  // Get available drug items based on user's role and location
+  const availableDrugItems = getMockDrugItems(user?.role || "", user?.location?.id);
   
   // Setup form with validation
   const form = useForm<FormData>({
@@ -108,7 +142,7 @@ export default function NewDistributionDialog({
   const addItem = () => {
     if (!selectedItemId) return;
 
-    const item = mockDrugItems.find(item => item.id === selectedItemId);
+    const item = availableDrugItems.find(item => item.id === selectedItemId);
     if (!item) return;
 
     // Check if item is already in the list
@@ -186,6 +220,28 @@ export default function NewDistributionDialog({
     }, 1000);
   };
 
+  // Check if user has permission to create distributions
+  if (user?.role !== "admin" && user?.role !== "state_manager") {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Access Denied</DialogTitle>
+            <DialogDescription>
+              You don't have permission to create distributions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-6">
+            <Package className="h-16 w-16 text-muted-foreground" />
+          </div>
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -195,7 +251,9 @@ export default function NewDistributionDialog({
             New Distribution
           </DialogTitle>
           <DialogDescription>
-            Create a new distribution to send pharmaceutical supplies to destinations.
+            {user?.role === "admin" 
+              ? "Create a new distribution to send pharmaceutical supplies to states."
+              : "Create a new distribution to send pharmaceutical supplies to facilities."}
           </DialogDescription>
         </DialogHeader>
         
@@ -239,7 +297,7 @@ export default function NewDistributionDialog({
                     <SelectValue placeholder="Select item" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockDrugItems.map(item => (
+                    {availableDrugItems.map(item => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.name}
                       </SelectItem>

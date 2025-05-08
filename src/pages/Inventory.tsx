@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search, Package, Plus, FileCheck, FileDown } from "lucide-react";
@@ -37,12 +45,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 // Define drug details type
 interface DrugDetails {
   id: string;
-  name: string; // Ensure this is not optional
+  name: string;
   category: string;
   stock: number;
   reorderLevel: number;
   expiryDate: string;
-  status?: string; // Make status optional if it's not always provided
+  status?: string;
+  location?: string;
 }
 
 // Mock data
@@ -55,6 +64,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 100,
     expiryDate: "2024-12-01",
     status: "adequate",
+    location: "central"
   },
   {
     id: "2",
@@ -64,6 +74,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 80,
     expiryDate: "2024-10-15",
     status: "adequate",
+    location: "central"
   },
   {
     id: "3",
@@ -73,6 +84,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 100,
     expiryDate: "2024-11-20",
     status: "low",
+    location: "abia"
   },
   {
     id: "4",
@@ -82,6 +94,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 75,
     expiryDate: "2024-08-30",
     status: "adequate",
+    location: "abia"
   },
   {
     id: "5",
@@ -91,6 +104,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 50,
     expiryDate: "2023-06-10",
     status: "expired",
+    location: "facility1"
   },
   {
     id: "6",
@@ -100,6 +114,7 @@ const mockDrugs: DrugDetails[] = [
     reorderLevel: 30,
     expiryDate: "2024-09-22",
     status: "low",
+    location: "facility1"
   },
 ];
 
@@ -126,6 +141,23 @@ export default function Inventory() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isOrderMoreDialogOpen, setIsOrderMoreDialogOpen] = useState(false);
+
+  // Determine user access level
+  const isAdmin = user?.role === "admin";
+  const isStateManager = user?.role === "state_manager";
+  const isFacilityUser = user?.role === "facility_manager" || user?.role === "pharmacist";
+  
+  // Filter drugs based on user's role/location
+  const filteredByRole = drugs.filter(drug => {
+    if (isAdmin) {
+      return true; // Admin sees all inventory
+    } else if (isStateManager && user?.location?.id) {
+      return drug.location === "central" || drug.location === user.location.id; // State sees central and their state
+    } else if (isFacilityUser && user?.location?.id) {
+      return drug.location === user.location.id; // Facility only sees their facility
+    }
+    return false;
+  });
 
   // Form for adding new drugs
   const newDrugForm = useForm<z.infer<typeof newDrugSchema>>({
@@ -173,7 +205,7 @@ export default function Inventory() {
   }, [selectedDrug, isEditDialogOpen, editDrugForm]);
 
   // Filter drugs by search term
-  const filteredDrugs = drugs.filter((drug) =>
+  const filteredDrugs = filteredByRole.filter((drug) =>
     drug.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     drug.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -194,9 +226,19 @@ export default function Inventory() {
 
   // Function to add new drug
   const handleAddDrug = (values: z.infer<typeof newDrugSchema>) => {
+    // Set location based on user role
+    const location = isAdmin 
+      ? "central" 
+      : isStateManager && user?.location?.id 
+      ? user.location.id 
+      : isFacilityUser && user?.location?.id 
+      ? user.location.id 
+      : "unknown";
+    
     const newDrug: DrugDetails = {
       id: (drugs.length + 1).toString(),
       ...values,
+      location,
       status: values.stock < values.reorderLevel ? "low" : "adequate"
     };
     
@@ -214,6 +256,26 @@ export default function Inventory() {
   // Function to edit drug
   const handleEditDrug = (values: z.infer<typeof newDrugSchema>) => {
     if (!selectedDrug) return;
+    
+    // Only admin and state managers can edit drugs
+    if (!isAdmin && !isStateManager) {
+      toast({
+        title: "Permission denied",
+        description: "You don't have permission to edit inventory items.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // State managers can only edit their own state's drugs
+    if (isStateManager && selectedDrug.location !== user?.location?.id && selectedDrug.location !== "central") {
+      toast({
+        title: "Permission denied",
+        description: "You can only edit inventory items for your state.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     const updatedDrugs = drugs.map(drug => 
       drug.id === selectedDrug.id ? {
@@ -239,6 +301,36 @@ export default function Inventory() {
   const handleOrderMore = (values: z.infer<typeof orderMoreSchema>) => {
     if (!selectedDrug) return;
     
+    // Only admin can order more for central inventory
+    if (selectedDrug.location === "central" && !isAdmin) {
+      toast({
+        title: "Permission denied",
+        description: "Only administrators can order more for central inventory.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // State managers can only order for their state
+    if (isStateManager && selectedDrug.location !== user?.location?.id && selectedDrug.location !== "central") {
+      toast({
+        title: "Permission denied",
+        description: "You can only order more for your location.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Facility users can't order more
+    if (isFacilityUser) {
+      toast({
+        title: "Permission denied",
+        description: "Please contact your state manager to request more inventory.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     const updatedDrugs = drugs.map(drug => 
       drug.id === selectedDrug.id ? {
         ...drug,
@@ -263,6 +355,17 @@ export default function Inventory() {
 
   // Function to handle file import
   const handleFileImport = () => {
+    // Only admin can import inventory
+    if (!isAdmin) {
+      toast({
+        title: "Permission denied",
+        description: "Only administrators can import inventory data.",
+        variant: "destructive"
+      });
+      setIsImportDialogOpen(false);
+      return;
+    }
+    
     // In a real application, this would handle CSV/Excel file parsing
     // For demo purposes, we'll just add some sample data
     const importedDrugs: DrugDetails[] = [
@@ -273,7 +376,8 @@ export default function Inventory() {
         stock: 150,
         reorderLevel: 30,
         expiryDate: "2024-11-30",
-        status: "adequate"
+        status: "adequate",
+        location: "central"
       },
       {
         id: (drugs.length + 2).toString(),
@@ -282,7 +386,8 @@ export default function Inventory() {
         stock: 75,
         reorderLevel: 25,
         expiryDate: "2025-01-15",
-        status: "adequate"
+        status: "adequate",
+        location: "central"
       }
     ];
     
@@ -295,12 +400,45 @@ export default function Inventory() {
     });
   };
 
+  // If no inventory is accessible, show a message
+  if (filteredDrugs.length === 0 && !isAdmin && !isStateManager) {
+    return (
+      <div className="page-container">
+        <div className="page-header">
+          <h1 className="page-title">Inventory Management</h1>
+          <p className="page-description">
+            Manage and track pharmaceutical inventory
+          </p>
+        </div>
+        
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>No Inventory Access</CardTitle>
+            <CardDescription>
+              You don't have access to any inventory records.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <Package className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4 text-center">
+              Please contact your administrator or state manager to request access.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
         <h1 className="page-title">Inventory Management</h1>
         <p className="page-description">
-          Manage and track pharmaceutical inventory
+          {isAdmin 
+            ? "Manage and distribute central pharmaceutical inventory" 
+            : isStateManager 
+            ? "Manage and distribute state pharmaceutical inventory"
+            : "View facility pharmaceutical inventory"}
         </p>
       </div>
 
@@ -316,144 +454,148 @@ export default function Inventory() {
         </div>
 
         <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-          {/* Import Button with Dialog */}
-          <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <FileDown className="mr-2 h-4 w-4" />
-                Import
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Import Drug Inventory</DialogTitle>
-                <DialogDescription>
-                  Upload a CSV or Excel file with your drug inventory data.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
-                  <FileCheck className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-sm font-medium">
-                    Drag and drop your file here, or click to browse
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Supports CSV and Excel files
-                  </p>
-                  <Button variant="outline" className="mt-4" size="sm">
-                    Select File
-                  </Button>
-                </div>
-                <div className="text-sm">
-                  <p className="font-medium">File requirements:</p>
-                  <ul className="list-disc pl-5 mt-1 text-muted-foreground">
-                    <li>Headers: Name, Category, Stock, Reorder Level, Expiry Date</li>
-                    <li>Maximum file size: 5MB</li>
-                  </ul>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
-                  Cancel
+          {/* Import Button with Dialog - Only for Admin */}
+          {isAdmin && (
+            <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Import
                 </Button>
-                <Button onClick={handleFileImport}>
-                  Import Now
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          {/* Add New Drug Button with Dialog */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add New Drug
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Drug</DialogTitle>
-                <DialogDescription>
-                  Enter the details of the new drug to add to the inventory.
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...newDrugForm}>
-                <form onSubmit={newDrugForm.handleSubmit(handleAddDrug)} className="space-y-4">
-                  <FormField
-                    control={newDrugForm.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Drug Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Paracetamol 500mg" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={newDrugForm.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Analgesic" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={newDrugForm.control}
-                      name="stock"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Stock Quantity</FormLabel>
-                          <FormControl>
-                            <Input type="number" min="0" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={newDrugForm.control}
-                      name="reorderLevel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Reorder Level</FormLabel>
-                          <FormControl>
-                            <Input type="number" min="1" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Drug Inventory</DialogTitle>
+                  <DialogDescription>
+                    Upload a CSV or Excel file with your drug inventory data.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-md p-6 text-center">
+                    <FileCheck className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <p className="mt-2 text-sm font-medium">
+                      Drag and drop your file here, or click to browse
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Supports CSV and Excel files
+                    </p>
+                    <Button variant="outline" className="mt-4" size="sm">
+                      Select File
+                    </Button>
                   </div>
-                  <FormField
-                    control={newDrugForm.control}
-                    name="expiryDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Expiry Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter className="pt-4">
-                    <Button type="submit">Add Drug</Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                  <div className="text-sm">
+                    <p className="font-medium">File requirements:</p>
+                    <ul className="list-disc pl-5 mt-1 text-muted-foreground">
+                      <li>Headers: Name, Category, Stock, Reorder Level, Expiry Date</li>
+                      <li>Maximum file size: 5MB</li>
+                    </ul>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleFileImport}>
+                    Import Now
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* Add New Drug Button with Dialog - Only for Admin and State Manager */}
+          {(isAdmin || isStateManager) && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add New Drug
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Drug</DialogTitle>
+                  <DialogDescription>
+                    Enter the details of the new drug to add to the inventory.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...newDrugForm}>
+                  <form onSubmit={newDrugForm.handleSubmit(handleAddDrug)} className="space-y-4">
+                    <FormField
+                      control={newDrugForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Drug Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Paracetamol 500mg" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={newDrugForm.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Analgesic" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={newDrugForm.control}
+                        name="stock"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Stock Quantity</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="0" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={newDrugForm.control}
+                        name="reorderLevel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Reorder Level</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={newDrugForm.control}
+                      name="expiryDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Expiry Date</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter className="pt-4">
+                      <Button type="submit">Add Drug</Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -506,7 +648,7 @@ export default function Inventory() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={getBadgeVariant(drug.status)}
+                        className={getBadgeVariant(drug.status || "")}
                       >
                         {drug.status === "low"
                           ? "Low Stock"
@@ -566,7 +708,7 @@ export default function Inventory() {
                                 <h3 className="font-semibold">Status:</h3>
                                 <Badge
                                   variant="outline"
-                                  className={getBadgeVariant(drug.status)}
+                                  className={getBadgeVariant(drug.status || "")}
                                 >
                                   {drug.status === "low"
                                     ? "Low Stock"
@@ -578,54 +720,29 @@ export default function Inventory() {
                             </div>
                           </div>
                           <DialogFooter>
-                            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                              <DialogTrigger asChild>
-                                <Button variant="outline">Edit</Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-[425px]">
-                                <DialogHeader>
-                                  <DialogTitle>Edit Drug</DialogTitle>
-                                  <DialogDescription>
-                                    Update the details of this drug.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <Form {...editDrugForm}>
-                                  <form onSubmit={editDrugForm.handleSubmit(handleEditDrug)} className="space-y-4">
-                                    <FormField
-                                      control={editDrugForm.control}
-                                      name="name"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Drug Name</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={editDrugForm.control}
-                                      name="category"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Category</FormLabel>
-                                          <FormControl>
-                                            <Input {...field} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <div className="grid grid-cols-2 gap-4">
+                            {/* Edit button - Only for Admin and State Manager with proper permissions */}
+                            {(isAdmin || (isStateManager && (drug.location === user?.location?.id || drug.location === "central"))) && (
+                              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline">Edit</Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[425px]">
+                                  <DialogHeader>
+                                    <DialogTitle>Edit Drug</DialogTitle>
+                                    <DialogDescription>
+                                      Update the details of this drug.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <Form {...editDrugForm}>
+                                    <form onSubmit={editDrugForm.handleSubmit(handleEditDrug)} className="space-y-4">
                                       <FormField
                                         control={editDrugForm.control}
-                                        name="stock"
+                                        name="name"
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel>Stock Quantity</FormLabel>
+                                            <FormLabel>Drug Name</FormLabel>
                                             <FormControl>
-                                              <Input type="number" min="0" {...field} />
+                                              <Input {...field} />
                                             </FormControl>
                                             <FormMessage />
                                           </FormItem>
@@ -633,10 +750,101 @@ export default function Inventory() {
                                       />
                                       <FormField
                                         control={editDrugForm.control}
-                                        name="reorderLevel"
+                                        name="category"
                                         render={({ field }) => (
                                           <FormItem>
-                                            <FormLabel>Reorder Level</FormLabel>
+                                            <FormLabel>Category</FormLabel>
+                                            <FormControl>
+                                              <Input {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                          control={editDrugForm.control}
+                                          name="stock"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Stock Quantity</FormLabel>
+                                              <FormControl>
+                                                <Input type="number" min="0" {...field} />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={editDrugForm.control}
+                                          name="reorderLevel"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Reorder Level</FormLabel>
+                                              <FormControl>
+                                                <Input type="number" min="1" {...field} />
+                                              </FormControl>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+                                      <FormField
+                                        control={editDrugForm.control}
+                                        name="expiryDate"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Expiry Date</FormLabel>
+                                            <FormControl>
+                                              <Input type="date" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <DialogFooter className="pt-4">
+                                        <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                                          Cancel
+                                        </Button>
+                                        <Button type="submit">Save Changes</Button>
+                                      </DialogFooter>
+                                    </form>
+                                  </Form>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                            
+                            {/* Order More button - Only for Admin and State Manager with proper permissions */}
+                            {(isAdmin || (isStateManager && (drug.location === user?.location?.id || drug.location === "central"))) && (
+                              <Dialog open={isOrderMoreDialogOpen} onOpenChange={setIsOrderMoreDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button>Order More</Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[425px]">
+                                  <DialogHeader>
+                                    <DialogTitle>Order More Stock</DialogTitle>
+                                    <DialogDescription>
+                                      Request additional units of {selectedDrug?.name}.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <Form {...orderMoreForm}>
+                                    <form onSubmit={orderMoreForm.handleSubmit(handleOrderMore)} className="space-y-4">
+                                      <div className="py-2">
+                                        <div className="flex justify-between pb-2 text-sm">
+                                          <span className="text-muted-foreground">Current Stock:</span>
+                                          <span className="font-medium">{selectedDrug?.stock} units</span>
+                                        </div>
+                                        <div className="flex justify-between pb-4 text-sm">
+                                          <span className="text-muted-foreground">Reorder Level:</span>
+                                          <span className="font-medium">{selectedDrug?.reorderLevel} units</span>
+                                        </div>
+                                      </div>
+                                      <FormField
+                                        control={orderMoreForm.control}
+                                        name="quantity"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Quantity to Order</FormLabel>
                                             <FormControl>
                                               <Input type="number" min="1" {...field} />
                                             </FormControl>
@@ -644,77 +852,17 @@ export default function Inventory() {
                                           </FormItem>
                                         )}
                                       />
-                                    </div>
-                                    <FormField
-                                      control={editDrugForm.control}
-                                      name="expiryDate"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Expiry Date</FormLabel>
-                                          <FormControl>
-                                            <Input type="date" {...field} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <DialogFooter className="pt-4">
-                                      <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                                        Cancel
-                                      </Button>
-                                      <Button type="submit">Save Changes</Button>
-                                    </DialogFooter>
-                                  </form>
-                                </Form>
-                              </DialogContent>
-                            </Dialog>
-                            
-                            <Dialog open={isOrderMoreDialogOpen} onOpenChange={setIsOrderMoreDialogOpen}>
-                              <DialogTrigger asChild>
-                                <Button>Order More</Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-[425px]">
-                                <DialogHeader>
-                                  <DialogTitle>Order More Stock</DialogTitle>
-                                  <DialogDescription>
-                                    Request additional units of {selectedDrug?.name}.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <Form {...orderMoreForm}>
-                                  <form onSubmit={orderMoreForm.handleSubmit(handleOrderMore)} className="space-y-4">
-                                    <div className="py-2">
-                                      <div className="flex justify-between pb-2 text-sm">
-                                        <span className="text-muted-foreground">Current Stock:</span>
-                                        <span className="font-medium">{selectedDrug?.stock} units</span>
-                                      </div>
-                                      <div className="flex justify-between pb-4 text-sm">
-                                        <span className="text-muted-foreground">Reorder Level:</span>
-                                        <span className="font-medium">{selectedDrug?.reorderLevel} units</span>
-                                      </div>
-                                    </div>
-                                    <FormField
-                                      control={orderMoreForm.control}
-                                      name="quantity"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Quantity to Order</FormLabel>
-                                          <FormControl>
-                                            <Input type="number" min="1" {...field} />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <DialogFooter className="pt-4">
-                                      <Button type="button" variant="outline" onClick={() => setIsOrderMoreDialogOpen(false)}>
-                                        Cancel
-                                      </Button>
-                                      <Button type="submit">Place Order</Button>
-                                    </DialogFooter>
-                                  </form>
-                                </Form>
-                              </DialogContent>
-                            </Dialog>
+                                      <DialogFooter className="pt-4">
+                                        <Button type="button" variant="outline" onClick={() => setIsOrderMoreDialogOpen(false)}>
+                                          Cancel
+                                        </Button>
+                                        <Button type="submit">Place Order</Button>
+                                      </DialogFooter>
+                                    </form>
+                                  </Form>
+                                </DialogContent>
+                              </Dialog>
+                            )}
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>

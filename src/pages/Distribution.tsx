@@ -24,7 +24,22 @@ import NewDistributionDialog from "@/components/NewDistributionDialog";
 import { ViewDistributionDialog } from "@/components/ViewDistributionDialog";
 import { TrackDistributionDialog } from "@/components/TrackDistributionDialog";
 import { toast } from "sonner";
-import type { Distribution } from "@/components/ViewDistributionDialog";
+
+// Distribution item type definition
+type DistributionItem = {
+  name: string;
+  quantity: number;
+};
+
+// Distribution type definition
+export type DistributionType = {
+  id: string;
+  destination: string;
+  destinationType: string;
+  date: string;
+  status: string;
+  items: DistributionItem[];
+};
 
 // Mock distribution data
 const initialDistributions = [
@@ -100,22 +115,6 @@ const initialStateDistributions = [
   },
 ];
 
-// Distribution item type definition
-type DistributionItem = {
-  name: string;
-  quantity: number;
-};
-
-// Distribution type definition
-type Distribution = {
-  id: string;
-  destination: string;
-  destinationType: string;
-  date: string;
-  status: string;
-  items: DistributionItem[];
-};
-
 // Mock destinations based on user role/location
 const destinations = {
   central: [
@@ -130,7 +129,6 @@ const destinations = {
   ]
 };
 
-// Rename the Distribution component to DistributionPage to avoid conflicts
 function DistributionPage() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
@@ -138,19 +136,48 @@ function DistributionPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // State for distributions data
-  const [recentDistributions, setRecentDistributions] = useState<Distribution[]>(initialDistributions);
-  const [stateDistributions, setStateDistributions] = useState<Distribution[]>(initialStateDistributions);
+  const [recentDistributions, setRecentDistributions] = useState<DistributionType[]>(initialDistributions);
+  const [stateDistributions, setStateDistributions] = useState<DistributionType[]>(initialStateDistributions);
 
   // View dialog state
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedDistribution, setSelectedDistribution] = useState<Distribution | null>(null);
+  const [selectedDistribution, setSelectedDistribution] = useState<DistributionType | null>(null);
 
   // Track dialog state
   const [trackDialogOpen, setTrackDialogOpen] = useState(false);
-  const [trackingDistribution, setTrackingDistribution] = useState<Distribution | null>(null);
+  const [trackingDistribution, setTrackingDistribution] = useState<DistributionType | null>(null);
 
-  // Determine which data to show based on user's location
-  const isStateManager = user?.location?.type === "state";
+  // Determine user access level
+  const isAdmin = user?.role === "admin";
+  const isStateManager = user?.role === "state_manager";
+  const isFacilityUser = user?.role === "facility_manager" || user?.role === "pharmacist";
+
+  // If user doesn't have permission to access this page, show a message
+  if (isFacilityUser) {
+    return (
+      <div className="page-container">
+        <div className="page-header">
+          <h1 className="page-title">Distribution Management</h1>
+        </div>
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Access Restricted</CardTitle>
+            <CardDescription>
+              Facility users cannot access the distribution management section.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <Package className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4 text-center">
+              You can view received inventory in the Inventory section.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Determine which data to show based on user's role
   const distributionsData = isStateManager ? stateDistributions : recentDistributions;
 
   // Filter distributions by search term
@@ -159,15 +186,12 @@ function DistributionPage() {
   );
 
   // Handle newly created distribution
-  const handleDistributionCreated = (newDistribution: Distribution) => {
+  const handleDistributionCreated = (newDistribution: DistributionType) => {
     if (isStateManager) {
       setStateDistributions(prev => [newDistribution, ...prev]);
     } else {
       setRecentDistributions(prev => [newDistribution, ...prev]);
     }
-    
-    // Update statistics in the UI (this is simulated)
-    // In a real application, you would recalculate these values
   };
 
   // Function to get badge style based on status
@@ -185,13 +209,13 @@ function DistributionPage() {
   };
 
   // Handle view button click
-  const handleViewDetails = (distribution: Distribution) => {
+  const handleViewDetails = (distribution: DistributionType) => {
     setSelectedDistribution(distribution);
     setViewDialogOpen(true);
   };
 
   // Handle track button click
-  const handleTrackDistribution = (distribution: Distribution) => {
+  const handleTrackDistribution = (distribution: DistributionType) => {
     setTrackingDistribution(distribution);
     setTrackDialogOpen(true);
     

@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type UserFormData = {
   id?: string;
@@ -63,18 +64,66 @@ export function UserFormDialog({
   mode,
 }: UserFormDialogProps) {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  
+  // Get available roles based on current user's role
+  const getAvailableRoles = () => {
+    if (currentUser?.role === "admin") {
+      return [
+        { value: "admin", label: "Admin" },
+        { value: "state_manager", label: "State Manager" },
+        { value: "facility_manager", label: "Facility Manager" },
+        { value: "pharmacist", label: "Pharmacist" }
+      ];
+    } else if (currentUser?.role === "state_manager") {
+      return [
+        { value: "facility_manager", label: "Facility Manager" },
+        { value: "pharmacist", label: "Pharmacist" }
+      ];
+    }
+    return [];
+  };
+  
+  const availableRoles = getAvailableRoles();
   
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: initialData || {
       name: "",
       email: "",
-      role: "facility_manager",
+      role: availableRoles[0]?.value || "facility_manager",
       location: "",
     },
   });
+  
+  // Update form default role when roles change
+  useEffect(() => {
+    if (mode === "add" && availableRoles.length > 0) {
+      form.setValue("role", availableRoles[0].value);
+    }
+  }, [availableRoles, form, mode]);
 
   function handleSubmit(data: UserFormData) {
+    // Admin validation
+    if (currentUser?.role !== "admin" && data.role === "admin") {
+      toast({
+        title: "Permission denied",
+        description: "Only admins can create or edit admin users",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // State manager validation
+    if (currentUser?.role === "state_manager" && data.role === "state_manager") {
+      toast({
+        title: "Permission denied",
+        description: "State managers cannot create other state managers",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     onSubmit({
       ...data,
       id: initialData?.id,
@@ -146,10 +195,11 @@ export function UserFormDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="state_manager">State Manager</SelectItem>
-                      <SelectItem value="facility_manager">Facility Manager</SelectItem>
-                      <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                      {availableRoles.map(role => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
