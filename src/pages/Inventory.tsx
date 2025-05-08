@@ -223,6 +223,23 @@ export default function Inventory() {
     });
   };
 
+  // Helper function to determine if stock is low
+  const isLowStock = (currentStock: number, threshold: number) => {
+    return currentStock < threshold;
+  };
+
+  // Helper function to render stock level badge
+  const renderStockLevel = (currentStock: string | number, threshold: number) => {
+    // Convert currentStock to number if it's a string
+    const stockNum = typeof currentStock === 'string' ? Number(currentStock) : currentStock;
+    
+    if (stockNum < threshold) {
+      return <Badge variant="destructive">Low Stock</Badge>;
+    } else {
+      return <Badge variant="outline" className="bg-green-50 text-green-700">In Stock</Badge>;
+    }
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">

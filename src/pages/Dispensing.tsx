@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,6 +211,7 @@ export default function Dispensing() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isNewPrescription, setIsNewPrescription] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<string>("");
+  const [patientSearchTerm, setPatientSearchTerm] = useState<string>("");
   const [dispensingDate, setDispensingDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [prescriptionItems, setPrescriptionItems] = useState<MedicationType[]>([]);
   
@@ -331,11 +331,10 @@ export default function Dispensing() {
   // Search patients
   const handlePatientSearch = () => {
     // In a real app, this would search the database
-    const searchInput = document.getElementById("patient") as HTMLInputElement;
-    if (!searchInput?.value) return;
+    if (!patientSearchTerm) return;
     
     const foundPatient = mockPatients.find(
-      p => p.id === searchInput.value || p.name.toLowerCase().includes(searchInput.value.toLowerCase())
+      p => p.id === patientSearchTerm || p.name.toLowerCase().includes(patientSearchTerm.toLowerCase())
     );
     
     if (foundPatient) {
@@ -528,13 +527,8 @@ export default function Dispensing() {
                   <Input 
                     id="patient" 
                     placeholder="Search patient by name or ID..." 
-                    value={selectedPatient ? getPatientById(selectedPatient)?.name || "" : ""}
-                    onChange={(e) => {
-                      // Clear selected patient if input is cleared
-                      if (!e.target.value) {
-                        setSelectedPatient("");
-                      }
-                    }}
+                    value={patientSearchTerm}
+                    onChange={(e) => setPatientSearchTerm(e.target.value)}
                   />
                   <Button variant="outline" size="icon" onClick={handlePatientSearch}>
                     <Search className="h-4 w-4" />
